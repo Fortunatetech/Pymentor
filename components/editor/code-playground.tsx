@@ -262,11 +262,22 @@ sys.stdout = StringIO()
         </div>
       )}
 
-      {/* Success Banner */}
-      {isCorrect && (
+      {/* Feedback Banner */}
+      {isCorrect === true && (
         <div className="px-4 py-3 bg-primary-500/10 border-t border-primary-500/30 flex items-center gap-2">
           <span className="text-primary-500 text-xl">🎉</span>
           <span className="text-primary-400 font-medium">Great job! Your code is correct!</span>
+        </div>
+      )}
+      {isCorrect === false && expectedOutput && output && !error && (
+        <div className="px-4 py-3 bg-red-500/10 border-t border-red-500/30">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-red-400 text-lg">💡</span>
+            <span className="text-red-400 font-medium">Not quite right — check your output</span>
+          </div>
+          <div className="text-xs text-dark-400 font-mono">
+            Expected: <span className="text-yellow-400">{expectedOutput.trim()}</span>
+          </div>
         </div>
       )}
     </div>

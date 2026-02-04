@@ -362,16 +362,27 @@ export default function LessonPage() {
                         handleExerciseComplete(currentExerciseIndex)
                       }
                       onRun={(code, output) => {
-                        // If no expectedOutput is set, mark as complete when code runs without errors
-                        if (
-                          !section.expectedOutput &&
-                          output &&
-                          !output.includes("Error") &&
-                          !output.includes("Traceback") &&
-                          output.trim().length > 0
-                        ) {
-                          handleExerciseComplete(currentExerciseIndex);
+                        // Only auto-complete for open-ended exercises (no expectedOutput)
+                        if (section.expectedOutput) return;
+
+                        // Code must have changed from the starter
+                        const starterNorm = (section.starter || "").replace(/\s+/g, "").replace(/#.*/g, "");
+                        const codeNorm = code.replace(/\s+/g, "").replace(/#.*/g, "");
+                        if (codeNorm === starterNorm || codeNorm.length <= starterNorm.length) return;
+
+                        // Must have output without errors
+                        if (!output || output.includes("Error") || output.includes("Traceback")) return;
+                        if (output.trim().length === 0) return;
+
+                        // Check required patterns if specified
+                        if (section.requiredPatterns && Array.isArray(section.requiredPatterns)) {
+                          const missing = section.requiredPatterns.some(
+                            (pattern: string) => !code.includes(pattern)
+                          );
+                          if (missing) return;
                         }
+
+                        handleExerciseComplete(currentExerciseIndex);
                       }}
                     />
 
