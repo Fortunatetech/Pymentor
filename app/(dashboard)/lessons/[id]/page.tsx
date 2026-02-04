@@ -53,6 +53,8 @@ export default function LessonPage() {
   const getTimeSpent = () =>
     Math.round((Date.now() - startTimeRef.current) / 1000);
 
+  const lessonStatusRef = useRef<string>("not_started");
+
   useEffect(() => {
     startTimeRef.current = Date.now();
 
@@ -66,8 +68,11 @@ export default function LessonPage() {
         const data = await res.json();
         setLesson(data);
 
-        // Mark as in_progress if not started
-        if (!data.userProgress || data.userProgress.status === "not_started") {
+        const currentStatus = data.userProgress?.status || "not_started";
+        lessonStatusRef.current = currentStatus;
+
+        // Mark as in_progress only if truly not started
+        if (currentStatus === "not_started") {
           fetch(`/api/lessons/${lessonId}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -82,7 +87,7 @@ export default function LessonPage() {
     }
     fetchLesson();
 
-    // Send time on unmount
+    // Send time tracking on unmount (preserve current status, never downgrade)
     return () => {
       const timeSpent = Math.round(
         (Date.now() - startTimeRef.current) / 1000
@@ -91,7 +96,7 @@ export default function LessonPage() {
         navigator.sendBeacon(
           `/api/lessons/${lessonId}`,
           new Blob(
-            [JSON.stringify({ status: "in_progress", timeSpent })],
+            [JSON.stringify({ timeSpent })],
             { type: "application/json" }
           )
         );
@@ -122,8 +127,10 @@ export default function LessonPage() {
   const exerciseCount = sections.filter(
     (s: any) => s.type === "exercise"
   ).length;
+  const previouslyCompleted = lesson.userProgress?.status === "completed";
   const isLessonComplete =
-    completedExercises.length === exerciseCount && exerciseCount > 0;
+    previouslyCompleted ||
+    (completedExercises.length === exerciseCount && exerciseCount > 0);
   const pathTitle = lesson.module?.path?.title || "";
   const moduleTitle = lesson.module?.title || "";
 
@@ -146,8 +153,8 @@ export default function LessonPage() {
       });
       const result = await res.json();
       if (result.xp_earned > 0) {
+        // First-time completion: show XP and streak
         setCompletionResult(result);
-        // Show feedback for 3 seconds then navigate
         setTimeout(() => {
           router.push(
             lesson.nextLesson
@@ -156,6 +163,7 @@ export default function LessonPage() {
           );
         }, 3000);
       } else {
+        // Already completed before: navigate immediately
         router.push(
           lesson.nextLesson
             ? `/lessons/${lesson.nextLesson.id}`

@@ -113,30 +113,51 @@ export async function POST(
   // Check if already completed (dedup XP)
   const { data: existing } = await supabase
     .from("user_lessons")
-    .select("status")
+    .select("status, time_spent")
     .eq("user_id", user.id)
     .eq("lesson_id", params.id)
     .single();
 
   const alreadyCompleted = existing?.status === "completed";
 
+  // If no status sent (time-tracking beacon only), preserve existing status
+  // Never downgrade from "completed" to "in_progress"
+  const effectiveStatus = !status
+    ? (existing?.status || "in_progress")
+    : alreadyCompleted && status !== "completed"
+      ? "completed"
+      : status;
+
+  // Accumulate time_spent instead of overwriting
+  const totalTime = (existing?.time_spent || 0) + (timeSpent || 0);
+
   // Upsert progress
+  const upsertData: Record<string, any> = {
+    user_id: user.id,
+    lesson_id: params.id,
+    status: effectiveStatus,
+    time_spent: totalTime,
+  };
+
+  // Only set started_at on first insert
+  if (!existing) {
+    upsertData.started_at = new Date().toISOString();
+  }
+
+  // Only set completed_at on first completion
+  if (status === "completed" && !alreadyCompleted) {
+    upsertData.completed_at = new Date().toISOString();
+  }
+
+  if (score !== undefined && score !== null) {
+    upsertData.score = score;
+  }
+
   const { data, error } = await supabase
     .from("user_lessons")
-    .upsert(
-      {
-        user_id: user.id,
-        lesson_id: params.id,
-        status: status || "in_progress",
-        score,
-        time_spent: timeSpent,
-        started_at: new Date().toISOString(),
-        completed_at: status === "completed" ? new Date().toISOString() : null,
-      },
-      {
-        onConflict: "user_id,lesson_id",
-      }
-    )
+    .upsert(upsertData, {
+      onConflict: "user_id,lesson_id",
+    })
     .select()
     .single();
 
