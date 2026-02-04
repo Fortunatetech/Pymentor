@@ -1,0 +1,477 @@
+"use client";
+
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { useUser, useSubscription } from "@/hooks";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import type { ChatSession } from "@/types";
+import Link from "next/link";
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
+
+export default function ChatPage() {
+  const { profile } = useUser();
+  const { isPro } = useSubscription();
+  const searchParams = useSearchParams();
+  const lessonId = searchParams.get("lesson_id");
+  const lessonTitle = searchParams.get("lesson_title");
+
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content: lessonTitle
+        ? `Hey there! I'm Py, your Python tutor. I see you're working on "${lessonTitle}". Ask me anything about this lesson - I'm here to help you understand the concepts!`
+        : "Hey there! I'm Py, your Python tutor. I'm here to help you learn Python in a fun, patient way. What would you like to explore today? You can ask me about any Python concept, share code you're working on, or just say hi!",
+      timestamp: new Date(),
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [showSessions, setShowSessions] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const userName = profile?.name || "Learner";
+  const userInitial = userName.charAt(0).toUpperCase();
+
+  // Fetch past sessions
+  useEffect(() => {
+    async function fetchSessions() {
+      try {
+        const res = await fetch("/api/chat/sessions");
+        if (res.ok) {
+          const data = await res.json();
+          setSessions(data);
+        }
+      } catch {
+        // Silent fail for session list
+      }
+    }
+    fetchSessions();
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
+  const loadSession = async (id: string) => {
+    try {
+      const res = await fetch(`/api/chat/sessions/${id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setSessionId(id);
+      setMessages(
+        data.messages?.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.created_at),
+        })) || []
+      );
+      setShowSessions(false);
+    } catch {
+      // Silent fail
+    }
+  };
+
+  const startNewChat = () => {
+    setSessionId(null);
+    setMessages([
+      {
+        id: "welcome",
+        role: "assistant",
+        content:
+          "Hey there! I'm Py, your Python tutor. What would you like to explore today?",
+        timestamp: new Date(),
+      },
+    ]);
+    setError(null);
+    setShowSessions(false);
+  };
+
+  const sendMessage = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: input,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setIsLoading(true);
+    setError(null);
+
+    // Add placeholder for streaming response
+    const assistantId = (Date.now() + 1).toString();
+    setMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", content: "", timestamp: new Date() },
+    ]);
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: input,
+          session_id: sessionId,
+          lesson_id: lessonId || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 429) {
+          setError(errorData.message);
+          // Remove the empty placeholder
+          setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: assistantId,
+              role: "assistant",
+              content: isPro
+                ? "You've reached your daily message limit. Try again tomorrow!"
+                : "You've used all your free messages for today. [Upgrade to Pro](/pricing) for 500 messages per day!",
+              timestamp: new Date(),
+            },
+          ]);
+          return;
+        }
+        throw new Error(errorData.message || "Failed to send message");
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === "session_id") {
+              setSessionId(data.session_id);
+            } else if (data.type === "text") {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? { ...m, content: m.content + data.text }
+                    : m
+                )
+              );
+            } else if (data.type === "error") {
+              throw new Error(data.message);
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue;
+            throw e;
+          }
+        }
+      }
+
+      // Refresh session list
+      const sessRes = await fetch("/api/chat/sessions");
+      if (sessRes.ok) setSessions(await sessRes.json());
+    } catch (err: any) {
+      console.error("Failed to send message:", err);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? {
+                ...m,
+                content:
+                  m.content ||
+                  "Oops! I hit a snag there. Could you try sending your message again?",
+              }
+            : m
+        )
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-4rem)] -m-8">
+      {/* Sessions Sidebar */}
+      <div
+        className={`${
+          showSessions ? "w-72" : "w-0"
+        } transition-all duration-200 overflow-hidden bg-white border-r border-dark-200 flex flex-col`}
+      >
+        <div className="p-4 border-b border-dark-200">
+          <Button onClick={startNewChat} className="w-full" size="sm">
+            + New Chat
+          </Button>
+        </div>
+        <div className="flex-1 overflow-auto p-2 space-y-1">
+          {sessions.map((session) => (
+            <button
+              key={session.id}
+              onClick={() => loadSession(session.id)}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm truncate transition-colors ${
+                sessionId === session.id
+                  ? "bg-primary-100 text-primary-700"
+                  : "text-dark-600 hover:bg-dark-50"
+              }`}
+            >
+              {session.title || "Untitled chat"}
+            </button>
+          ))}
+          {sessions.length === 0 && (
+            <p className="text-xs text-dark-400 p-3 text-center">
+              No past sessions
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Chat Header */}
+        <div className="bg-white border-b border-dark-200 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowSessions(!showSessions)}
+              className="text-dark-500 hover:text-dark-700 p-1"
+              title="Toggle sessions"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
+              </svg>
+            </button>
+            <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white text-xl">
+              Py
+            </div>
+            <div>
+              <div className="font-semibold text-dark-900">
+                Py - Your Python Tutor
+              </div>
+              <div className="text-xs text-primary-600">
+                Remembers your progress
+              </div>
+            </div>
+          </div>
+          {!isPro && (
+            <Link
+              href="/pricing"
+              className="text-xs text-dark-400 hover:text-primary-600"
+            >
+              Free plan
+            </Link>
+          )}
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-auto p-6 space-y-6 bg-dark-50">
+          {messages.map((message) => (
+            <MessageBubble
+              key={message.id}
+              message={message}
+              userInitial={userInitial}
+            />
+          ))}
+          {isLoading &&
+            messages[messages.length - 1]?.role !== "assistant" && (
+              <div className="flex items-start gap-3 max-w-3xl">
+                <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white text-sm flex-shrink-0">
+                  Py
+                </div>
+                <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-sm border border-dark-100">
+                  <div className="flex gap-1">
+                    <span
+                      className="w-2 h-2 bg-dark-300 rounded-full animate-bounce"
+                      style={{ animationDelay: "0ms" }}
+                    />
+                    <span
+                      className="w-2 h-2 bg-dark-300 rounded-full animate-bounce"
+                      style={{ animationDelay: "150ms" }}
+                    />
+                    <span
+                      className="w-2 h-2 bg-dark-300 rounded-full animate-bounce"
+                      style={{ animationDelay: "300ms" }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="bg-red-50 border-t border-red-200 px-6 py-3 text-sm text-red-700 flex items-center justify-between">
+            <span>{error}</span>
+            {!isPro && (
+              <Link href="/pricing">
+                <Button size="sm">Upgrade to Pro</Button>
+              </Link>
+            )}
+          </div>
+        )}
+
+        {/* Input Area */}
+        <div className="bg-white border-t border-dark-200 p-4">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-end gap-3">
+              <div className="flex-1 bg-dark-50 rounded-xl border border-dark-200 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="w-full p-4 bg-transparent resize-none text-dark-700 placeholder-dark-400 focus:outline-none"
+                  rows={1}
+                  placeholder="Ask Py anything about Python..."
+                />
+              </div>
+              <Button
+                onClick={sendMessage}
+                disabled={isLoading || !input.trim()}
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                  />
+                </svg>
+              </Button>
+            </div>
+            <div className="flex items-center justify-between mt-2 text-xs text-dark-400">
+              <span>Py remembers your progress and adapts to your level</span>
+              <span>Press Enter to send</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({
+  message,
+  userInitial,
+}: {
+  message: Message;
+  userInitial: string;
+}) {
+  const isUser = message.role === "user";
+
+  if (isUser) {
+    return (
+      <div className="flex items-start gap-3 max-w-3xl ml-auto flex-row-reverse">
+        <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-700 font-semibold text-sm flex-shrink-0">
+          {userInitial}
+        </div>
+        <div className="flex-1">
+          <div className="bg-primary-500 text-white rounded-2xl rounded-tr-none p-4">
+            <p>{message.content}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-3 max-w-3xl">
+      <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white text-sm flex-shrink-0">
+        Py
+      </div>
+      <div className="flex-1">
+        <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-sm border border-dark-100">
+          <div className="text-dark-700 prose prose-sm max-w-none prose-pre:bg-transparent prose-pre:p-0">
+            <ReactMarkdown
+              components={{
+                code({ className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  const inline = !match;
+                  if (inline) {
+                    return (
+                      <code
+                        className="bg-dark-100 px-1.5 py-0.5 rounded text-sm font-mono text-dark-700"
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    );
+                  }
+                  return (
+                    <SyntaxHighlighter
+                      style={oneDark}
+                      language={match[1]}
+                      PreTag="div"
+                      className="rounded-xl !my-3"
+                    >
+                      {String(children).replace(/\n$/, "")}
+                    </SyntaxHighlighter>
+                  );
+                },
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <button
+            className="text-xs text-dark-400 hover:text-dark-600 px-2 py-1 rounded hover:bg-dark-100"
+            onClick={() => navigator.clipboard.writeText(message.content)}
+          >
+            Copy
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
