@@ -326,7 +326,11 @@ export default function LessonPage() {
                 return (
                   <div
                     key={index}
-                    className="border-2 border-primary-200 rounded-xl p-6 bg-primary-50/30"
+                    className={`border-2 rounded-xl p-6 ${
+                      isCompleted
+                        ? "border-green-300 bg-green-50/30"
+                        : "border-primary-200 bg-primary-50/30"
+                    }`}
                   >
                     <div className="flex items-center gap-2 mb-4">
                       <Badge
@@ -335,7 +339,7 @@ export default function LessonPage() {
                         {isCompleted ? "Completed" : "Exercise"}
                       </Badge>
                       <span className="text-sm text-dark-500">
-                        Your turn!
+                        {isCompleted ? "Great work!" : "Your turn!"}
                       </span>
                     </div>
 
@@ -349,10 +353,32 @@ export default function LessonPage() {
                       onSuccess={() =>
                         handleExerciseComplete(currentExerciseIndex)
                       }
+                      onRun={(code, output) => {
+                        // If no expectedOutput is set, mark as complete when code runs without errors
+                        if (
+                          !section.expectedOutput &&
+                          output &&
+                          !output.includes("Error") &&
+                          !output.includes("Traceback") &&
+                          output.trim().length > 0
+                        ) {
+                          handleExerciseComplete(currentExerciseIndex);
+                        }
+                      }}
                     />
 
+                    {/* Completion message */}
+                    {isCompleted && (
+                      <div className="mt-4 flex items-center gap-2 p-3 bg-green-100 rounded-lg border border-green-200">
+                        <span className="text-lg">🎉</span>
+                        <span className="text-sm font-medium text-green-800">
+                          Nicely done! You nailed this exercise. Keep going!
+                        </span>
+                      </div>
+                    )}
+
                     {/* Hints */}
-                    {section.hints && section.hints.length > 0 && (
+                    {section.hints && section.hints.length > 0 && !isCompleted && (
                       <div className="mt-4">
                         <button
                           onClick={() =>
@@ -410,10 +436,14 @@ export default function LessonPage() {
                   ? "Completing..."
                   : lesson.nextLesson
                   ? `Next: ${lesson.nextLesson.title}`
-                  : "Back to Lessons"}
+                  : "Complete Lesson"}
               </Button>
             ) : (
-              <Button disabled>Complete exercises to continue</Button>
+              <div className="flex items-center gap-3">
+                <Button disabled>
+                  Complete exercises to continue ({completedExercises.length}/{exerciseCount})
+                </Button>
+              </div>
             )}
           </div>
         </div>
