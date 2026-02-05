@@ -1,4 +1,19 @@
-import Anthropic from "@anthropic-ai/sdk";
+// ============================================
+// CLAUDE IMPLEMENTATION (Commented out)
+// ============================================
+// import Anthropic from "@anthropic-ai/sdk";
+// const anthropic = new Anthropic({
+//   apiKey: process.env.ANTHROPIC_API_KEY,
+// });
+
+// ============================================
+// GEMINI IMPLEMENTATION (Active)
+// ============================================
+import {
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold,
+} from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildAIContext } from "@/lib/ai/build-context";
@@ -6,9 +21,7 @@ import type { AIContext } from "@/types";
 
 export const maxDuration = 60;
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 const SYSTEM_PROMPT = `You are Py, a friendly and patient AI Python tutor. Your goal is to help beginners learn Python programming through encouragement, simple explanations, and guided practice.
 
@@ -76,6 +89,16 @@ Level: ${context.user.skill_level}`;
 Use this context to personalize your responses. Reference concepts they've mastered when explaining new ones. Be extra patient with concepts they're struggling with.`;
 
   return prompt;
+}
+
+// Convert chat history to Gemini format
+function toGeminiHistory(
+  messages: { role: string; content: string }[]
+): { role: "user" | "model"; parts: { text: string }[] }[] {
+  return messages.map((msg) => ({
+    role: msg.role === "assistant" ? "model" : "user",
+    parts: [{ text: msg.content }],
+  }));
 }
 
 export async function POST(req: NextRequest) {
@@ -188,15 +211,6 @@ export async function POST(req: NextRequest) {
     const context = await buildAIContext(supabase, user.id, lesson_id || undefined);
     const fullSystemPrompt = SYSTEM_PROMPT + buildContextPrompt(context);
 
-    // Build messages array
-    const messages: Anthropic.MessageParam[] = [];
-    if (dbHistory) {
-      for (const msg of dbHistory) {
-        messages.push({ role: msg.role, content: msg.content });
-      }
-    }
-    messages.push({ role: "user", content: message });
-
     // Save user message to DB
     await supabase.from("chat_messages").insert({
       session_id: sessionId,
@@ -204,13 +218,44 @@ export async function POST(req: NextRequest) {
       content: message,
     });
 
-    // Stream response
-    const stream = anthropic.messages.stream({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      system: fullSystemPrompt,
-      messages,
+    // ============================================
+    // GEMINI STREAMING IMPLEMENTATION
+    // ============================================
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: fullSystemPrompt,
+      generationConfig: {
+        maxOutputTokens: 1024,
+        temperature: 0.7,
+      },
+      // Safety settings for educational content
+      safetySettings: [
+        {
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+      ],
     });
+
+    // Build chat with history
+    const chat = model.startChat({
+      history: dbHistory ? toGeminiHistory(dbHistory) : [],
+    });
+
+    // Stream the response
+    const result = await chat.sendMessageStream(message);
 
     let fullResponse = "";
 
@@ -224,12 +269,9 @@ export async function POST(req: NextRequest) {
         );
 
         try {
-          for await (const event of stream) {
-            if (
-              event.type === "content_block_delta" &&
-              event.delta.type === "text_delta"
-            ) {
-              const text = event.delta.text;
+          for await (const chunk of result.stream) {
+            const text = chunk.text();
+            if (text) {
               fullResponse += text;
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify({ type: "text", text })}\n\n`)
@@ -258,6 +300,7 @@ export async function POST(req: NextRequest) {
           );
           controller.close();
         } catch (err) {
+          console.error("Gemini streaming error:", err);
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ type: "error", message: "Stream interrupted" })}\n\n`)
           );
@@ -273,6 +316,83 @@ export async function POST(req: NextRequest) {
         Connection: "keep-alive",
       },
     });
+
+    // ============================================
+    // CLAUDE STREAMING IMPLEMENTATION (Commented out)
+    // ============================================
+    // const messages: Anthropic.MessageParam[] = [];
+    // if (dbHistory) {
+    //   for (const msg of dbHistory) {
+    //     messages.push({ role: msg.role, content: msg.content });
+    //   }
+    // }
+    // messages.push({ role: "user", content: message });
+    //
+    // const stream = anthropic.messages.stream({
+    //   model: "claude-sonnet-4-20250514",
+    //   max_tokens: 1024,
+    //   system: fullSystemPrompt,
+    //   messages,
+    // });
+    //
+    // let fullResponse = "";
+    //
+    // const readableStream = new ReadableStream({
+    //   async start(controller) {
+    //     const encoder = new TextEncoder();
+    //
+    //     controller.enqueue(
+    //       encoder.encode(`data: ${JSON.stringify({ type: "session_id", session_id: sessionId })}\n\n`)
+    //     );
+    //
+    //     try {
+    //       for await (const event of stream) {
+    //         if (
+    //           event.type === "content_block_delta" &&
+    //           event.delta.type === "text_delta"
+    //         ) {
+    //           const text = event.delta.text;
+    //           fullResponse += text;
+    //           controller.enqueue(
+    //             encoder.encode(`data: ${JSON.stringify({ type: "text", text })}\n\n`)
+    //           );
+    //         }
+    //       }
+    //
+    //       await supabase.from("chat_messages").insert({
+    //         session_id: sessionId,
+    //         role: "assistant",
+    //         content: fullResponse,
+    //       });
+    //
+    //       await supabase
+    //         .from("chat_sessions")
+    //         .update({
+    //           message_count: (dbHistory?.length || 0) + 2,
+    //           updated_at: new Date().toISOString(),
+    //         })
+    //         .eq("id", sessionId);
+    //
+    //       controller.enqueue(
+    //         encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`)
+    //       );
+    //       controller.close();
+    //     } catch (err) {
+    //       controller.enqueue(
+    //         encoder.encode(`data: ${JSON.stringify({ type: "error", message: "Stream interrupted" })}\n\n`)
+    //       );
+    //       controller.close();
+    //     }
+    //   },
+    // });
+    //
+    // return new Response(readableStream, {
+    //   headers: {
+    //     "Content-Type": "text/event-stream",
+    //     "Cache-Control": "no-cache",
+    //     Connection: "keep-alive",
+    //   },
+    // });
   } catch (error) {
     console.error("Chat API error:", error);
     return NextResponse.json(
