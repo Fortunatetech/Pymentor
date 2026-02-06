@@ -9,6 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { Streak, XPDisplay } from "@/components/ui/streak";
 import { useUser } from "@/hooks/use-user";
 import { cn } from "@/lib/utils";
+import { useSearchParams } from "next/navigation";
+import { DashboardTour } from "@/components/dashboard-tour";
 
 interface DailyChallenge {
   id: string;
@@ -36,35 +38,14 @@ interface PathWithProgress {
 
 export default function DashboardPage() {
   const { profile, loading: userLoading } = useUser();
+  const searchParams = useSearchParams();
+  const isNewUser = searchParams.get("tour") === "true";
+
   const [paths, setPaths] = useState<PathWithProgress[]>([]);
   const [challenge, setChallenge] = useState<DailyChallenge | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const [lessonsRes, challengeRes] = await Promise.all([
-          fetch("/api/lessons"),
-          fetch("/api/challenges"),
-        ]);
-        if (lessonsRes.ok) {
-          const data = await lessonsRes.json();
-          setPaths(data || []);
-        }
-        if (challengeRes.ok) {
-          const data = await challengeRes.json();
-          if (data && data.id) {
-            setChallenge(data);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch data:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
+  // ... (existing useEffect) ...
 
   if (userLoading || loading) {
     return (
@@ -133,14 +114,17 @@ export default function DashboardPage() {
 
   return (
     <div>
+      <DashboardTour />
       {/* Welcome Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div id="tour-welcome" className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-dark-900">
-            Welcome back, {userName}!
+            {isNewUser ? `Welcome, ${userName}!` : `Welcome back, ${userName}!`}
           </h1>
           <p className="text-dark-500">
-            Keep up the great work. You&apos;re making amazing progress!
+            {isNewUser
+              ? "We're excited to have you. Explore your dashboard to get started."
+              : "Keep up the great work. You're making amazing progress!"}
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -179,7 +163,7 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Grid */}
-      <div className="grid md:grid-cols-3 gap-4 mb-6">
+      <div id="tour-stats" className="grid md:grid-cols-3 gap-4 mb-6">
         <StatCard
           icon="📚"
           label="Lessons Completed"
@@ -199,7 +183,7 @@ export default function DashboardPage() {
 
       {/* Daily Challenge */}
       {challenge && (
-        <Card className="mb-6 border-accent-300 bg-accent-50/30">
+        <Card id="tour-challenge" className="mb-6 border-accent-300 bg-accent-50/30">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -222,8 +206,8 @@ export default function DashboardPage() {
                   challenge.difficulty === "easy"
                     ? "primary"
                     : challenge.difficulty === "medium"
-                    ? "accent"
-                    : "default"
+                      ? "accent"
+                      : "default"
                 }
               >
                 {challenge.difficulty}
@@ -238,7 +222,7 @@ export default function DashboardPage() {
 
       {/* Learning Path Progress */}
       {pathProgress.length > 0 && (
-        <Card>
+        <Card id="tour-paths">
           <CardContent className="p-6">
             <h2 className="font-semibold text-dark-900 mb-4">Your Learning Paths</h2>
             <div className="space-y-4">
