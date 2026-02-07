@@ -19,7 +19,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const [currentPassword, setCurrentPassword] = useState("");
+  // const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -84,7 +84,7 @@ export default function SettingsPage() {
       setPasswordError(error.message);
     } else {
       setPasswordSuccess(true);
-      setCurrentPassword("");
+      // setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     }
@@ -255,6 +255,7 @@ export default function SettingsPage() {
                   </p>
                 </div>
               </div>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {(profile as any)?.streak_freeze_used_at && (
                 <p className="text-xs text-dark-400 mt-2">
                   Last used: {new Date((profile as any).streak_freeze_used_at).toLocaleDateString()}

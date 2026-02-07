@@ -106,6 +106,7 @@ export default function LessonPage() {
 
   const sections = lesson.content?.sections || [];
   const exerciseCount = sections.filter(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (s: any) => s.type === "exercise"
   ).length;
   const previouslyCompleted = lesson.userProgress?.status === "completed";
@@ -233,6 +234,7 @@ export default function LessonPage() {
 
           {/* Content Sections */}
           <div className="space-y-6">
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {sections.map((section: any, index: number) => {
               if (section.type === "text") {
                 return (

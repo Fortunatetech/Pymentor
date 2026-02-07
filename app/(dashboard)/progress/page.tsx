@@ -68,7 +68,9 @@ export default function ProgressPage() {
         const completedIds = new Set(completedLessons?.map((l) => l.lesson_id) || []);
 
         for (const path of paths) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const pathLessons = (path.modules as any[])?.flatMap(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (m: any) => (m.lessons as any[])?.map((l: any) => l.id) || []
           ) || [];
           if (pathLessons.length > 0 && pathLessons.every((id: string) => completedIds.has(id))) {
@@ -228,9 +230,8 @@ export default function ProgressPage() {
               ].map((achievement) => (
                 <div
                   key={achievement.name}
-                  className={`flex flex-col items-center p-3 rounded-xl ${
-                    achievement.unlocked ? "bg-primary-50" : "bg-dark-100 opacity-50"
-                  }`}
+                  className={`flex flex-col items-center p-3 rounded-xl ${achievement.unlocked ? "bg-primary-50" : "bg-dark-100 opacity-50"
+                    }`}
                   title={achievement.name}
                 >
                   <span className="text-2xl mb-1">{achievement.icon}</span>
