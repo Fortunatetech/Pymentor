@@ -357,8 +357,8 @@ export default function ChallengePage() {
                   <div
                     key={i}
                     className={`w-4 h-4 rounded-full ${i < trialsRemaining
-                        ? "bg-primary-500"
-                        : "bg-dark-200"
+                      ? "bg-primary-500"
+                      : "bg-dark-200"
                       }`}
                   />
                 ))}
@@ -393,6 +393,7 @@ export default function ChallengePage() {
           initialCode={challenge.starter_code || "# Write your solution here\n"}
           testCases={challenge.test_cases && challenge.test_cases.length > 0 ? challenge.test_cases : undefined}
           onSuccess={handleSuccess}
+          onFailure={handleAttemptFailed}
           onRun={handleCodeRun}
           readOnly={completed || trialsRemaining === 0}
         />

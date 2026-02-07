@@ -15,7 +15,9 @@ interface CodePlaygroundProps {
   expectedOutput?: string;
   testCases?: TestCase[];
   onSuccess?: () => void;
+  onFailure?: () => void;
   onRun?: (code: string, output: string) => void;
+  onSubmit?: (code: string) => void;
   readOnly?: boolean;
   lessonId?: string;
 }
@@ -32,7 +34,9 @@ export function CodePlayground({
   expectedOutput,
   testCases,
   onSuccess,
+  onFailure,
   onRun,
+  onSubmit,
   readOnly = false,
   lessonId,
 }: CodePlaygroundProps) {
@@ -112,14 +116,55 @@ sys.stdout = StringIO()
 
       setOutput(outputStr);
 
+      if (onRun) {
+        onRun(code, outputStr);
+      }
+    } catch (err: any) {
+      const errorMessage = err.message || "An error occurred";
+      const cleanError = errorMessage
+        .replace(/File "<exec>", line \d+/g, "")
+        .replace(/PythonError: Traceback.*?\n/g, "")
+        .trim();
+      setOutput(cleanError);
+      setError(cleanError);
+      setShowDiagnosticBanner(true);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const submitCode = async () => {
+    if (!pyodideRef.current || isRunning) return;
+
+    setIsRunning(true);
+    setError(null);
+    setIsCorrect(null);
+    setTestResults([]);
+
+    try {
+      // Notify parent submission is starting
+      if (onSubmit) onSubmit(code);
+
+      // Capture stdout
+      pyodideRef.current.runPython(`
+import sys
+from io import StringIO
+sys.stdout = StringIO()
+      `);
+
+      // Run user code
+      await pyodideRef.current.runPythonAsync(code);
+      const outputStr = String(pyodideRef.current.runPython("sys.stdout.getvalue()")).trim();
+      setOutput(outputStr);
+
+      let passed = false;
+
       // If test cases are provided, run each and validate via API
       if (testCases && testCases.length > 0) {
         const outputs: string[] = [];
         for (const tc of testCases) {
           try {
             pyodideRef.current.runPython(`sys.stdout = StringIO()`);
-            // Build a call expression: assume the code defines a function
-            // Run user code first, then call with input
             await pyodideRef.current.runPythonAsync(code);
             const tcOutput = pyodideRef.current.runPython("sys.stdout.getvalue()");
             outputs.push(String(tcOutput).trim());
@@ -128,45 +173,39 @@ sys.stdout = StringIO()
           }
         }
 
-        try {
-          const res = await fetch("/api/code/check", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code, testCases, outputs }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setTestResults(data.results || []);
-            setIsCorrect(data.passed);
-            if (data.passed && onSuccess) {
-              onSuccess();
-            }
-          }
-        } catch {
-          // Fall back to client-side check
+        const res = await fetch("/api/code/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code, testCases, outputs }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setTestResults(data.results || []);
+          setIsCorrect(data.passed);
+          passed = data.passed;
         }
       } else if (expectedOutput !== undefined) {
         // Simple output comparison
-        const isMatch = outputStr === expectedOutput.trim();
-        setIsCorrect(isMatch);
-        if (isMatch && onSuccess) {
-          onSuccess();
-        }
+        passed = outputStr === expectedOutput.trim();
+        setIsCorrect(passed);
       }
 
-      if (onRun) {
-        onRun(code, outputStr);
+      if (passed) {
+        if (onSuccess) onSuccess();
+      } else {
+        if (onFailure) onFailure();
       }
     } catch (err: any) {
       const errorMessage = err.message || "An error occurred";
-      // Clean up Python error message for readability
       const cleanError = errorMessage
         .replace(/File "<exec>", line \d+/g, "")
         .replace(/PythonError: Traceback.*?\n/g, "")
         .trim();
       setOutput(cleanError);
       setError(cleanError);
-      setShowDiagnosticBanner(true); // Show Py's diagnostic invitation
+      setShowDiagnosticBanner(true);
+      if (onFailure) onFailure();
     } finally {
       setIsRunning(false);
     }
@@ -250,13 +289,27 @@ sys.stdout = StringIO()
           <div className="w-3 h-3 rounded-full bg-green-500"></div>
           <span className="text-dark-400 text-sm font-mono ml-2">main.py</span>
         </div>
-        <Button
-          size="sm"
-          onClick={runCode}
-          disabled={isLoading || isRunning}
-        >
-          {isLoading ? "Loading Python..." : isRunning ? "Running..." : "▶ Run"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={runCode}
+            disabled={isLoading || isRunning}
+            className="text-dark-400 hover:text-white"
+          >
+            {isLoading ? "..." : isRunning ? "..." : "▶ Run"}
+          </Button>
+          {(testCases || expectedOutput !== undefined || onSubmit) && (
+            <Button
+              size="sm"
+              onClick={submitCode}
+              disabled={isLoading || isRunning}
+              className="bg-primary-600 hover:bg-primary-700 text-white"
+            >
+              {isRunning ? "Checking..." : "✓ Submit Answer"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Code Editor */}
