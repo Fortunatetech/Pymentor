@@ -182,17 +182,17 @@ export default function ProjectPage() {
               key={i}
               onClick={() => setCurrentStep(i)}
               className={`w-full text-left p-3 rounded-lg transition-all ${currentStep === i
-                  ? "bg-primary-100 border-l-4 border-primary-500"
-                  : "hover:bg-dark-50"
+                ? "bg-primary-100 border-l-4 border-primary-500"
+                : "hover:bg-dark-50"
                 }`}
             >
               <div className="flex items-center gap-2">
                 <span
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${completedSteps.includes(i)
-                      ? "bg-green-500 text-white"
-                      : currentStep === i
-                        ? "bg-primary-500 text-white"
-                        : "bg-dark-200 text-dark-500"
+                    ? "bg-green-500 text-white"
+                    : currentStep === i
+                      ? "bg-primary-500 text-white"
+                      : "bg-dark-200 text-dark-500"
                     }`}
                 >
                   {completedSteps.includes(i) ? "✓" : i + 1}
@@ -316,7 +316,7 @@ export default function ProjectPage() {
                 You earned {project.xpReward} XP. Amazing work mastering concepts like {project.concepts.slice(0, 2).join(", ")}!
               </p>
               <div className="flex justify-center gap-4">
-                <Button onClick={triggerCelebration} variant="outline">
+                <Button onClick={triggerCelebration} variant="secondary">
                   Celebrate Again 🎉
                 </Button>
                 <Link href="/projects">
