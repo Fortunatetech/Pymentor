@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,17 @@ export default function ResetPasswordPage() {
     const [success, setSuccess] = useState(false);
     const router = useRouter();
     const supabase = createClient();
+
+    useEffect(() => {
+        // Check if we have a valid session from the reset link
+        const checkSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                setError("Invalid or expired reset link. Please request a new one.");
+            }
+        };
+        checkSession();
+    }, [supabase]);
 
     const handleReset = async (e: React.FormEvent) => {
         e.preventDefault();
