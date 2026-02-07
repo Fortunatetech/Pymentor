@@ -18,13 +18,20 @@ export default function SettingsPage() {
   const [dailyGoal, setDailyGoal] = useState(15);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+
+  // Account Deletion State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteEmail, setDeleteEmail] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -99,6 +106,37 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDeleteAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDeleting(true);
+    setDeleteError("");
+
+    try {
+      const response = await fetch("/api/user/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: deleteEmail,
+          password: deletePassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setDeleteError(data.error || "Failed to delete account");
+        setDeleting(false);
+      } else {
+        // Success! Sign out and redirect
+        await supabase.auth.signOut();
+        window.location.href = "/";
+      }
+    } catch (err) {
+      setDeleteError("An unexpected error occurred");
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl">
       <h1 className="text-2xl font-bold text-dark-900 mb-8">Settings</h1>
@@ -107,7 +145,7 @@ export default function SettingsPage() {
       <Card className="mb-6">
         <CardContent className="p-6">
           <h2 className="font-semibold text-dark-900 mb-4">Profile</h2>
-          
+
           <div className="space-y-4">
             <Input
               label="Name"
@@ -115,7 +153,7 @@ export default function SettingsPage() {
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
             />
-            
+
             <div>
               <label className="block text-sm font-medium text-dark-700 mb-2">
                 Email
@@ -164,7 +202,7 @@ export default function SettingsPage() {
       <Card className="mb-6">
         <CardContent className="p-6">
           <h2 className="font-semibold text-dark-900 mb-4">Change Password</h2>
-          
+
           <form onSubmit={handleChangePassword} className="space-y-4">
             <Input
               type="password"
@@ -231,7 +269,7 @@ export default function SettingsPage() {
       <Card className="mb-6">
         <CardContent className="p-6">
           <h2 className="font-semibold text-dark-900 mb-4">Subscription</h2>
-          
+
           <div className="flex items-center justify-between p-4 bg-dark-50 rounded-xl mb-4">
             <div>
               <div className="flex items-center gap-2">
@@ -251,7 +289,7 @@ export default function SettingsPage() {
                 </p>
               )}
             </div>
-            
+
             {isPro ? (
               <Button
                 variant="secondary"
@@ -287,7 +325,7 @@ export default function SettingsPage() {
       <Card>
         <CardContent className="p-6">
           <h2 className="font-semibold text-red-600 mb-4">Danger Zone</h2>
-          
+
           <div className="flex items-center justify-between p-4 border border-red-200 rounded-xl">
             <div>
               <p className="font-medium text-dark-900">Delete Account</p>
@@ -298,18 +336,81 @@ export default function SettingsPage() {
             <Button
               variant="danger"
               size="sm"
-              onClick={() => {
-                if (confirm("Are you absolutely sure? This action cannot be undone.")) {
-                  // Would call delete account API
-                  alert("Please contact support to delete your account.");
-                }
-              }}
+              onClick={() => setShowDeleteModal(true)}
             >
               Delete
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Account Deletion Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-dark-100 animate-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4 mx-auto text-xl">
+                ⚠️
+              </div>
+              <h2 className="text-xl font-bold text-dark-900 text-center mb-2">
+                Are you absolutely sure?
+              </h2>
+              <p className="text-dark-500 text-center mb-6">
+                This action is permanent and cannot be undone. You will lose your progress, XP, and all account data.
+              </p>
+
+              <form onSubmit={handleDeleteAccount} className="space-y-4">
+                <Input
+                  label="Type your email to confirm"
+                  placeholder={authUser?.email || "Email"}
+                  value={deleteEmail}
+                  onChange={(e) => setDeleteEmail(e.target.value)}
+                  required
+                />
+                <Input
+                  type="password"
+                  label="Enter your password"
+                  placeholder="••••••••"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  required
+                />
+
+                {deleteError && (
+                  <p className="text-sm text-red-500 bg-red-50 p-3 rounded-lg">
+                    {deleteError}
+                  </p>
+                )}
+
+                <div className="flex flex-col gap-3 pt-2">
+                  <Button
+                    type="submit"
+                    variant="danger"
+                    className="w-full"
+                    disabled={deleting || deleteEmail !== authUser?.email || !deletePassword}
+                  >
+                    {deleting ? "Deleting Account..." : "Permanently Delete Account"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full"
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setDeleteEmail("");
+                      setDeletePassword("");
+                      setDeleteError("");
+                    }}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

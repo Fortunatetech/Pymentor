@@ -41,6 +41,7 @@ export default function ChatPage() {
   const [showSessions, setShowSessions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const userName = profile?.name || "Learner";
   const userInitial = userName.charAt(0).toUpperCase();
@@ -207,11 +208,11 @@ export default function ChatPage() {
         prev.map((m) =>
           m.id === assistantId
             ? {
-                ...m,
-                content:
-                  m.content ||
-                  "Oops! I hit a snag there. Could you try sending your message again?",
-              }
+              ...m,
+              content:
+                m.content ||
+                "Oops! I hit a snag there. Could you try sending your message again?",
+            }
             : m
         )
       );
@@ -231,9 +232,8 @@ export default function ChatPage() {
     <div className="flex h-[calc(100vh-4rem)] -m-8">
       {/* Sessions Sidebar */}
       <div
-        className={`${
-          showSessions ? "w-72" : "w-0"
-        } transition-all duration-200 overflow-hidden bg-white border-r border-dark-200 flex flex-col`}
+        className={`${showSessions ? "w-72" : "w-0"
+          } transition-all duration-200 overflow-hidden bg-white border-r border-dark-200 flex flex-col`}
       >
         <div className="p-4 border-b border-dark-200">
           <Button onClick={startNewChat} className="w-full" size="sm">
@@ -245,11 +245,10 @@ export default function ChatPage() {
             <button
               key={session.id}
               onClick={() => loadSession(session.id)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm truncate transition-colors ${
-                sessionId === session.id
-                  ? "bg-primary-100 text-primary-700"
-                  : "text-dark-600 hover:bg-dark-50"
-              }`}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm truncate transition-colors ${sessionId === session.id
+                ? "bg-primary-100 text-primary-700"
+                : "text-dark-600 hover:bg-dark-50"
+                }`}
             >
               {session.title || "Untitled chat"}
             </button>
@@ -309,11 +308,16 @@ export default function ChatPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-auto p-6 space-y-6 bg-dark-50">
-          {messages.map((message) => (
+          {messages.map((message, index) => (
             <MessageBubble
               key={message.id}
               message={message}
               userInitial={userInitial}
+              onEdit={() => {
+                setInput(message.content);
+                inputRef.current?.focus();
+              }}
+              isFirstAssistant={index === 0 && message.role === "assistant"}
             />
           ))}
           {isLoading &&
@@ -361,6 +365,7 @@ export default function ChatPage() {
             <div className="flex items-end gap-3">
               <div className="flex-1 bg-dark-50 rounded-xl border border-dark-200 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20 transition-all">
                 <textarea
+                  ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -402,21 +407,54 @@ export default function ChatPage() {
 function MessageBubble({
   message,
   userInitial,
+  onEdit,
+  isFirstAssistant,
 }: {
   message: Message;
   userInitial: string;
+  onEdit: () => void;
+  isFirstAssistant?: boolean;
 }) {
   const isUser = message.role === "user";
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (isUser) {
     return (
-      <div className="flex items-start gap-3 max-w-3xl ml-auto flex-row-reverse">
+      <div className="flex items-start gap-3 max-w-3xl ml-auto flex-row-reverse group">
         <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-primary-700 font-semibold text-sm flex-shrink-0">
           {userInitial}
         </div>
-        <div className="flex-1">
-          <div className="bg-primary-500 text-white rounded-2xl rounded-tr-none p-4">
-            <p>{message.content}</p>
+        <div className="flex-1 flex flex-col items-end">
+          <div className="bg-primary-500 text-white rounded-2xl rounded-tr-none p-4 shadow-sm relative">
+            <p className="whitespace-pre-wrap">{message.content}</p>
+          </div>
+          <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button
+              onClick={onEdit}
+              className="p-1.5 text-dark-400 hover:text-dark-600 hover:bg-white rounded-md flex items-center gap-1 text-xs transition-all font-medium border border-transparent hover:border-dark-200"
+              title="Edit message"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit
+            </button>
+            <button
+              onClick={handleCopy}
+              className="p-1.5 text-dark-400 hover:text-dark-600 hover:bg-white rounded-md flex items-center gap-1 text-xs transition-all font-medium border border-transparent hover:border-dark-200"
+              title="Copy text"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+              {copied ? "Copied!" : "Copy"}
+            </button>
           </div>
         </div>
       </div>
@@ -424,7 +462,7 @@ function MessageBubble({
   }
 
   return (
-    <div className="flex items-start gap-3 max-w-3xl">
+    <div className="flex items-start gap-3 max-w-3xl group">
       <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white text-sm flex-shrink-0">
         Py
       </div>
@@ -463,14 +501,19 @@ function MessageBubble({
             </ReactMarkdown>
           </div>
         </div>
-        <div className="flex items-center gap-2 mt-2">
-          <button
-            className="text-xs text-dark-400 hover:text-dark-600 px-2 py-1 rounded hover:bg-dark-100"
-            onClick={() => navigator.clipboard.writeText(message.content)}
-          >
-            Copy
-          </button>
-        </div>
+        {!isFirstAssistant && (
+          <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button
+              className="p-1.5 text-dark-400 hover:text-dark-600 hover:bg-white rounded-md flex items-center gap-1 text-xs transition-all font-medium border border-transparent hover:border-dark-200"
+              onClick={handleCopy}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

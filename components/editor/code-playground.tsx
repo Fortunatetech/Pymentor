@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 
 interface TestCase {
@@ -16,6 +17,7 @@ interface CodePlaygroundProps {
   onSuccess?: () => void;
   onRun?: (code: string, output: string) => void;
   readOnly?: boolean;
+  lessonId?: string;
 }
 
 declare global {
@@ -32,6 +34,7 @@ export function CodePlayground({
   onSuccess,
   onRun,
   readOnly = false,
+  lessonId,
 }: CodePlaygroundProps) {
   const [code, setCode] = useState(initialCode);
   const [output, setOutput] = useState("");
@@ -40,6 +43,10 @@ export function CodePlayground({
   const [error, setError] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [testResults, setTestResults] = useState<{ passed: boolean; description: string; expected: string; actual?: string }[]>([]);
+  const [showDiagnosticBanner, setShowDiagnosticBanner] = useState(false);
+  const [isDiagnosticModalOpen, setIsDiagnosticModalOpen] = useState(false);
+  const [diagnosticExplanation, setDiagnosticExplanation] = useState("");
+  const [isFetchingDiagnostics, setIsFetchingDiagnostics] = useState(false);
   const pyodideRef = useRef<any>(null);
 
   useEffect(() => {
@@ -54,7 +61,7 @@ export function CodePlayground({
         script.src = "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js";
         script.async = true;
         document.head.appendChild(script);
-        
+
         await new Promise((resolve, reject) => {
           script.onload = resolve;
           script.onerror = reject;
@@ -65,7 +72,7 @@ export function CodePlayground({
       if (!pyodideRef.current) {
         pyodideRef.current = await window.loadPyodide();
       }
-      
+
       setIsLoading(false);
     } catch (err) {
       setError("Failed to load Python environment");
@@ -102,7 +109,7 @@ sys.stdout = StringIO()
 
       const result = await Promise.race([runPromise, timeoutPromise]);
       const outputStr = String(result).trim();
-      
+
       setOutput(outputStr);
 
       // If test cases are provided, run each and validate via API
@@ -159,8 +166,58 @@ sys.stdout = StringIO()
         .trim();
       setOutput(cleanError);
       setError(cleanError);
+      setShowDiagnosticBanner(true); // Show Py's diagnostic invitation
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const fetchDiagnostics = async () => {
+    if (!error) return;
+    setIsFetchingDiagnostics(true);
+    setIsDiagnosticModalOpen(true);
+    setDiagnosticExplanation(""); // Clear previous
+    try {
+      const res = await fetch("/api/ai/explain-error", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, error, lessonId }),
+      });
+
+      if (!res.ok) throw new Error("Failed to fetch diagnostics");
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No reader");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.text) {
+                setDiagnosticExplanation((prev) => prev + data.text);
+              }
+            } catch (e) {
+              console.error("Error parsing stream:", e);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setDiagnosticExplanation("Oops! Py couldn't analyze the error right now. Try checking your syntax!");
+    } finally {
+      setIsFetchingDiagnostics(false);
     }
   };
 
@@ -176,7 +233,7 @@ sys.stdout = StringIO()
         target.selectionStart = target.selectionEnd = start + 4;
       }, 0);
     }
-    
+
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
       runCode();
@@ -277,6 +334,118 @@ sys.stdout = StringIO()
           </div>
           <div className="text-xs text-dark-400 font-mono">
             Expected: <span className="text-yellow-400">{expectedOutput.trim()}</span>
+          </div>
+        </div>
+      )}
+
+      {/* AI Diagnostic Banner */}
+      {showDiagnosticBanner && error && (
+        <div className="px-4 py-3 bg-primary-500/10 border-t border-primary-500/30 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm">
+              Py
+            </div>
+            <div>
+              <p className="text-sm font-medium text-primary-900">It looks like you hit a snag!</p>
+              <p className="text-xs text-primary-700">Py noticed an error in your code. Want a hint?</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={fetchDiagnostics}
+            className="bg-primary-600 hover:bg-primary-700 text-white border-none shadow-sm h-8 px-3 text-xs"
+          >
+            Run Py&apos;s Diagnostics
+          </Button>
+        </div>
+      )}
+
+      {/* Diagnostic Modal */}
+      {isDiagnosticModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-10 bg-dark-900/80 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-dark-100 flex items-center justify-between bg-dark-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white text-lg font-bold">
+                  Py
+                </div>
+                <div>
+                  <h3 className="font-bold text-dark-900">Py&apos;s Diagnostic Clinic</h3>
+                  <p className="text-xs text-dark-500 font-medium uppercase tracking-wider">Expert Debugger Mode</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsDiagnosticModalOpen(false)}
+                className="text-dark-400 hover:text-dark-600 transition-colors"
+                title="Close"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-auto flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-dark-100">
+              {/* Left: Code Review */}
+              <div className="flex-1 p-6 bg-dark-900 overflow-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xs font-bold text-dark-400 uppercase tracking-widest">Your Code</h4>
+                  <div className="px-2 py-0.5 rounded bg-red-500/20 text-red-400 text-[10px] font-bold border border-red-500/30">
+                    ERROR DETECTED
+                  </div>
+                </div>
+                <pre className="text-sm font-mono text-green-400 leading-relaxed">
+                  <code>{code}</code>
+                </pre>
+                <div className="mt-6 p-3 bg-red-500/10 rounded-lg border border-red-500/20">
+                  <p className="text-[10px] uppercase font-bold text-red-400 mb-1">Traceback</p>
+                  <p className="text-xs font-mono text-red-300">{error}</p>
+                </div>
+              </div>
+
+              {/* Right: Py's Analysis */}
+              <div className="w-full md:w-[400px] p-8 bg-white flex flex-col">
+                <h4 className="text-xs font-bold text-dark-400 uppercase tracking-widest mb-6">Py&apos;s Analysis</h4>
+
+                {isFetchingDiagnostics ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center">
+                    <div className="relative w-16 h-16 mb-6">
+                      <div className="absolute inset-0 rounded-full border-4 border-primary-100 border-t-primary-500 animate-spin"></div>
+                      <div className="absolute inset-0 flex items-center justify-center text-xl">🔍</div>
+                    </div>
+                    <p className="text-dark-900 font-bold mb-1">Analyzing your logic...</p>
+                    <p className="text-sm text-dark-500">Checking for typos, structural gaps, and Python rules.</p>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col">
+                    <div className="prose prose-sm text-dark-700 leading-relaxed italic mb-8">
+                      {diagnosticExplanation ? (
+                        <ReactMarkdown>
+                          {diagnosticExplanation}
+                        </ReactMarkdown>
+                      ) : (
+                        <p>No explanation generated. Try running the diagnostics again.</p>
+                      )}
+                    </div>
+
+                    <div className="mt-auto p-4 bg-primary-50 rounded-xl border border-primary-100">
+                      <p className="text-xs font-bold text-primary-700 uppercase mb-2">Next Step</p>
+                      <p className="text-sm text-primary-900">Close this modal and try to apply the fixed logic. You got this!</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-dark-50 border-t border-dark-100 flex justify-end">
+              <Button onClick={() => setIsDiagnosticModalOpen(false)}>
+                Got it, back to work
+              </Button>
+            </div>
           </div>
         </div>
       )}

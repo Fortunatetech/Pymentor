@@ -13,6 +13,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkEmail, setCheckEmail] = useState(false); // New state for success screen
   const router = useRouter();
   const supabase = createClient();
 
@@ -21,7 +22,7 @@ export default function SignupPage() {
     setLoading(true);
     setError("");
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -34,7 +35,13 @@ export default function SignupPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      router.push("/dashboard?tour=true");
+      // Check if email confirmation is required
+      if (data.user && !data.session) {
+        setCheckEmail(true);
+      } else {
+        // If no confirmation needed (e.g. anonymous enabled or auto-confirm), go to dashboard
+        router.push("/dashboard?tour=true");
+      }
     }
   };
 
@@ -46,6 +53,33 @@ export default function SignupPage() {
       },
     });
   };
+
+  if (checkEmail) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-dark-50 px-4">
+        <div className="w-full max-w-md bg-white rounded-2xl p-8 shadow-sm border border-dark-100 text-center">
+          <div className="w-16 h-16 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">
+            📧
+          </div>
+          <h1 className="text-2xl font-bold text-dark-900 mb-2">Check your email</h1>
+          <p className="text-dark-500 mb-6">
+            We sent a confirmation link to <span className="font-semibold text-dark-900">{email}</span>.
+            <br />
+            Click the link to activate your account and start learning.
+          </p>
+          <div className="p-4 bg-dark-50 rounded-xl mb-6 text-sm text-dark-600">
+            <p>Didn't receive the email?</p>
+            <p className="mt-1">Check your spam folder or try signing up again.</p>
+          </div>
+          <Link href="/login">
+            <Button variant="outline" className="w-full">
+              Back to Log in
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-dark-50 px-4">

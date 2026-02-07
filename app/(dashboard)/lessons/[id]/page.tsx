@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { CodePlayground } from "@/components/editor/code-playground";
+import { useLessonTimer } from "@/hooks/use-lesson-timer";
 
 interface LessonData {
   id: string;
@@ -48,16 +49,11 @@ export default function LessonPage() {
     useState<CompletionResult | null>(null);
 
   // Time tracking
-  const startTimeRef = useRef(Date.now());
-
-  const getTimeSpent = () =>
-    Math.round((Date.now() - startTimeRef.current) / 1000);
+  const { stopAndGetTime } = useLessonTimer(lessonId);
 
   const lessonStatusRef = useRef<string>("not_started");
 
   useEffect(() => {
-    startTimeRef.current = Date.now();
-
     async function fetchLesson() {
       try {
         const res = await fetch(`/api/lessons/${lessonId}`);
@@ -86,22 +82,6 @@ export default function LessonPage() {
       }
     }
     fetchLesson();
-
-    // Send time tracking on unmount (preserve current status, never downgrade)
-    return () => {
-      const timeSpent = Math.round(
-        (Date.now() - startTimeRef.current) / 1000
-      );
-      if (timeSpent > 5) {
-        navigator.sendBeacon(
-          `/api/lessons/${lessonId}`,
-          new Blob(
-            [JSON.stringify({ timeSpent })],
-            { type: "application/json" }
-          )
-        );
-      }
-    };
   }, [lessonId]);
 
   if (loading) {
@@ -148,7 +128,7 @@ export default function LessonPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: "completed",
-          timeSpent: getTimeSpent(),
+          timeSpent: stopAndGetTime(), // Use accurate idle-aware time
         }),
       });
       const result = await res.json();
@@ -237,8 +217,8 @@ export default function LessonPage() {
               value={
                 exerciseCount > 0
                   ? Math.round(
-                      (completedExercises.length / exerciseCount) * 100
-                    )
+                    (completedExercises.length / exerciseCount) * 100
+                  )
                   : 0
               }
               className="flex-1"
@@ -334,11 +314,10 @@ export default function LessonPage() {
                 return (
                   <div
                     key={index}
-                    className={`border-2 rounded-xl p-6 ${
-                      isCompleted
-                        ? "border-green-300 bg-green-50/30"
-                        : "border-primary-200 bg-primary-50/30"
-                    }`}
+                    className={`border-2 rounded-xl p-6 ${isCompleted
+                      ? "border-green-300 bg-green-50/30"
+                      : "border-primary-200 bg-primary-50/30"
+                      }`}
                   >
                     <div className="flex items-center gap-2 mb-4">
                       <Badge
@@ -356,6 +335,7 @@ export default function LessonPage() {
                     </p>
 
                     <CodePlayground
+                      lessonId={lessonId}
                       initialCode={section.starter}
                       expectedOutput={section.expectedOutput}
                       onSuccess={() =>
@@ -454,8 +434,8 @@ export default function LessonPage() {
                 {completing
                   ? "Completing..."
                   : lesson.nextLesson
-                  ? `Next: ${lesson.nextLesson.title}`
-                  : "Complete Lesson"}
+                    ? `Next: ${lesson.nextLesson.title}`
+                    : "Complete Lesson"}
               </Button>
             ) : (
               <div className="flex items-center gap-3">
