@@ -37,18 +37,24 @@ export async function GET(
 
   // Sort modules and lessons by order_index
   path.modules = path.modules
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ?.sort((a: any, b: any) => a.order_index - b.order_index)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((mod: any) => ({
       ...mod,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       lessons: mod.lessons?.sort((a: any, b: any) => a.order_index - b.order_index),
     }));
 
   // Get user progress if logged in
   const { data: { user } } = await supabase.auth.getUser();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let userProgress: Record<string, any> = {};
 
   if (user) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const lessonIds = path.modules?.flatMap((mod: any) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mod.lessons?.map((l: any) => l.id) || []
     ) || [];
 
@@ -63,6 +69,7 @@ export async function GET(
         userProgress = progress.reduce((acc, p) => {
           acc[p.lesson_id] = p;
           return acc;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }, {} as Record<string, any>);
       }
     }

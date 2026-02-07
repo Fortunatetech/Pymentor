@@ -131,7 +131,7 @@ export default function SettingsPage() {
         await supabase.auth.signOut();
         window.location.href = "/";
       }
-    } catch (err) {
+    } catch {
       setDeleteError("An unexpected error occurred");
       setDeleting(false);
     }
@@ -258,6 +258,7 @@ export default function SettingsPage() {
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {(profile as any)?.streak_freeze_used_at && (
                 <p className="text-xs text-dark-400 mt-2">
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   Last used: {new Date((profile as any).streak_freeze_used_at).toLocaleDateString()}
                 </p>
               )}

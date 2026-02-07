@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
   const pathsWithCounts = paths?.map((path) => {
     const modules = path.modules || [];
     const lessonCount = modules.reduce(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (sum: number, mod: any) => sum + (mod.lessons?.length || 0),
       0
     );

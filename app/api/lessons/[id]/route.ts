@@ -132,6 +132,7 @@ export async function POST(
   const totalTime = (existing?.time_spent || 0) + (timeSpent || 0);
 
   // Upsert progress
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const upsertData: Record<string, any> = {
     user_id: user.id,
     lesson_id: params.id,

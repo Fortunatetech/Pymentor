@@ -72,7 +72,7 @@ export default function SignupPage() {
             <p className="mt-1">Check your spam folder or try signing up again.</p>
           </div>
           <Link href="/login">
-            <Button variant="outline" className="w-full">
+            <Button variant="ghost" className="w-full">
               Back to Log in
             </Button>
           </Link>

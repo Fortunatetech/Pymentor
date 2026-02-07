@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 
 export async function POST(req: NextRequest) {
     try {
@@ -60,14 +61,6 @@ export async function POST(req: NextRequest) {
         // We assume we have a way to create a service role client.
         // If not, we fall back to a "soft delete" or RPC.
 
-        // Attempting deletion with service role:
-        const supabaseAdmin = createClient(true); // Assuming createClient accepts a flag or we construct it manually. 
-        // Wait, the standard createClient helper usually just passes cookies.
-        // Let's create a raw admin client here if needed, or check if createClient supports it.
-        // Looking at `lib/supabase/server.ts` would confirm, but usually:
-        // import { createClient } from '@supabase/supabase-js'
-        // const admin = createClient(url, service_role_key)
-
         // Let's try to delete using the admin client.
         if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
             // Fallback if keys missing (unlikely in this project setup)
@@ -75,7 +68,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
         }
 
-        const { createClient: createAdminClient } = require('@supabase/supabase-js');
         const admin = createAdminClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL,
             process.env.SUPABASE_SERVICE_ROLE_KEY,
