@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CodePlayground } from "@/components/editor/code-playground";
-import { useUser } from "@/hooks/use-user";
+// import { useUser } from "@/hooks/use-user";
 
 interface TestCase {
   input: string;
@@ -29,7 +29,7 @@ interface Challenge {
 }
 
 export default function ChallengePage() {
-  const { profile } = useUser();
+  // const { profile } = useUser();
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [loading, setLoading] = useState(true);
   const [completed, setCompleted] = useState(false);
@@ -132,8 +132,8 @@ export default function ChallengePage() {
               challenge.difficulty === "easy"
                 ? "primary"
                 : challenge.difficulty === "medium"
-                ? "accent"
-                : "default"
+                  ? "accent"
+                  : "default"
             }
           >
             {challenge.difficulty}

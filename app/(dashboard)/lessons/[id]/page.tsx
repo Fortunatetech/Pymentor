@@ -15,6 +15,7 @@ interface LessonData {
   estimated_minutes: number;
   xp_reward: number;
   content: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sections: any[];
   };
   module: {
@@ -75,7 +76,7 @@ export default function LessonPage() {
             body: JSON.stringify({ status: "in_progress" }),
           });
         }
-      } catch (err) {
+      } catch {
         setError("Failed to load lesson");
       } finally {
         setLoading(false);

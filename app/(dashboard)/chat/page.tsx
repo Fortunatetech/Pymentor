@@ -70,6 +70,8 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+
+
   const loadSession = async (id: string) => {
     try {
       const res = await fetch(`/api/chat/sessions/${id}`);
@@ -77,6 +79,7 @@ export default function ChatPage() {
       const data = await res.json();
       setSessionId(id);
       setMessages(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data.messages?.map((m: any) => ({
           id: m.id,
           role: m.role,
@@ -202,6 +205,7 @@ export default function ChatPage() {
       // Refresh session list
       const sessRes = await fetch("/api/chat/sessions");
       if (sessRes.ok) setSessions(await sessRes.json());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error("Failed to send message:", err);
       setMessages((prev) =>

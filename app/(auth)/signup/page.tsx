@@ -68,7 +68,7 @@ export default function SignupPage() {
             Click the link to activate your account and start learning.
           </p>
           <div className="p-4 bg-dark-50 rounded-xl mb-6 text-sm text-dark-600">
-            <p>Didn't receive the email?</p>
+            <p>Didn&apos;t receive the email?</p>
             <p className="mt-1">Check your spam folder or try signing up again.</p>
           </div>
           <Link href="/login">
