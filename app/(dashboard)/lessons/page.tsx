@@ -28,6 +28,9 @@ interface LearningPath {
   description: string;
   icon: string;
   modules: Module[];
+  isUnlocked: boolean;
+  completionPercentage: number;
+  order_index: number;
 }
 
 export default function LessonsPage() {
@@ -44,9 +47,9 @@ export default function LessonsPage() {
       const response = await fetch("/api/lessons");
       const data = await response.json();
       setPaths(data);
-      if (data.length > 0) {
-        setSelectedPath(data[0].id);
-      }
+      // Select first unlocked path, or first path if none unlocked
+      const firstUnlocked = data.find((p: LearningPath) => p.isUnlocked);
+      setSelectedPath(firstUnlocked?.id || data[0]?.id);
     } catch (error) {
       console.error("Failed to fetch lessons:", error);
     } finally {
@@ -55,11 +58,17 @@ export default function LessonsPage() {
   };
 
   const currentPath = paths.find(p => p.id === selectedPath);
-  
-  const calculateProgress = (path: LearningPath) => {
-    const allLessons = path.modules?.flatMap(m => m.lessons) || [];
-    const completed = allLessons.filter(l => l.userProgress?.status === "completed").length;
-    return allLessons.length > 0 ? Math.round((completed / allLessons.length) * 100) : 0;
+
+  // Find what percentage is needed to unlock next level
+  const getUnlockRequirement = (path: LearningPath) => {
+    if (path.isUnlocked) return null;
+    const prevPath = paths.find(p => p.order_index === path.order_index - 1);
+    if (!prevPath) return null;
+    return {
+      prevTitle: prevPath.title,
+      prevCompletion: prevPath.completionPercentage,
+      needed: 80
+    };
   };
 
   if (loading) {
@@ -77,23 +86,45 @@ export default function LessonsPage() {
     <div>
       {/* Path Selector */}
       <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
-        {paths.map((path) => (
-          <button
-            key={path.id}
-            onClick={() => setSelectedPath(path.id)}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl whitespace-nowrap transition-all ${
-              selectedPath === path.id
-                ? "bg-primary-100 border-2 border-primary-500"
-                : "bg-white border border-dark-200 hover:border-dark-300"
-            }`}
-          >
-            <span className="text-2xl">{path.icon}</span>
-            <div className="text-left">
-              <div className="font-medium text-dark-900">{path.title}</div>
-              <div className="text-xs text-dark-500">{calculateProgress(path)}% complete</div>
-            </div>
-          </button>
-        ))}
+        {paths.map((path) => {
+          const unlockReq = getUnlockRequirement(path);
+          return (
+            <button
+              key={path.id}
+              onClick={() => path.isUnlocked && setSelectedPath(path.id)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl whitespace-nowrap transition-all ${!path.isUnlocked
+                ? "bg-dark-100 border border-dark-200 opacity-75 cursor-not-allowed"
+                : selectedPath === path.id
+                  ? "bg-primary-100 border-2 border-primary-500"
+                  : "bg-white border border-dark-200 hover:border-dark-300"
+                }`}
+              disabled={!path.isUnlocked}
+              title={unlockReq ? `Complete ${unlockReq.needed}% of ${unlockReq.prevTitle} to unlock` : undefined}
+            >
+              <span className="text-2xl">
+                {path.isUnlocked ? path.icon : "🔒"}
+              </span>
+              <div className="text-left">
+                <div className="font-medium text-dark-900 flex items-center gap-2">
+                  {path.title}
+                  {!path.isUnlocked && (
+                    <span className="text-xs text-dark-400 font-normal">
+                      (Locked)
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-dark-500">
+                  {path.isUnlocked
+                    ? `${path.completionPercentage}% complete`
+                    : unlockReq
+                      ? `${unlockReq.prevCompletion}/${unlockReq.needed}% of ${unlockReq.prevTitle}`
+                      : "Locked"
+                  }
+                </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {currentPath && (
@@ -108,8 +139,13 @@ export default function LessonsPage() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <Progress value={calculateProgress(currentPath)} className="flex-1 max-w-md" />
-              <span className="text-sm text-dark-500">{calculateProgress(currentPath)}% complete</span>
+              <Progress value={currentPath.completionPercentage} className="flex-1 max-w-md" />
+              <span className="text-sm text-dark-500">
+                {currentPath.completionPercentage}% complete
+                {currentPath.completionPercentage >= 80 && currentPath.completionPercentage < 100 && (
+                  <span className="ml-2 text-green-600">🔓 Next level unlocked!</span>
+                )}
+              </span>
             </div>
           </div>
 
@@ -127,7 +163,7 @@ export default function LessonsPage() {
 
                   <div className="space-y-2">
                     {module.lessons?.map((lesson) => (
-                      <LessonRow key={lesson.id} lesson={lesson} />
+                      <LessonRow key={lesson.id} lesson={lesson} isPathUnlocked={currentPath.isUnlocked} />
                     ))}
                   </div>
                 </CardContent>
@@ -140,9 +176,10 @@ export default function LessonsPage() {
   );
 }
 
-function LessonRow({ lesson }: { lesson: Lesson }) {
+
+function LessonRow({ lesson, isPathUnlocked = true }: { lesson: Lesson; isPathUnlocked?: boolean }) {
   const status = lesson.userProgress?.status || "not_started";
-  
+
   const statusConfig = {
     completed: { badge: "success", icon: "✓", text: "Completed" },
     in_progress: { badge: "accent", icon: "▶", text: "In Progress" },
@@ -158,13 +195,12 @@ function LessonRow({ lesson }: { lesson: Lesson }) {
     >
       <div className="flex items-center gap-4">
         <div
-          className={`w-6 h-6 rounded-full flex items-center justify-center text-sm ${
-            status === "completed"
-              ? "bg-green-500 text-white"
-              : status === "in_progress"
+          className={`w-6 h-6 rounded-full flex items-center justify-center text-sm ${status === "completed"
+            ? "bg-green-500 text-white"
+            : status === "in_progress"
               ? "bg-accent-500 text-white"
               : "border-2 border-dark-300 text-dark-300"
-          }`}
+            }`}
         >
           {config.icon}
         </div>

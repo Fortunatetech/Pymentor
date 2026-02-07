@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
-// GET /api/lessons - Get all lessons with user progress
+// GET /api/lessons - Get all lessons with user progress and level unlock status
 export async function GET(req: NextRequest) {
   try {
     // Rate limit by IP
@@ -56,26 +56,62 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Merge progress with lessons
-    const pathsWithProgress = paths?.map(path => ({
-      ...path,
-      modules: path.modules
+    // Calculate completion percentages and unlock status for each path
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pathCompletions: Record<number, number> = {};
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    paths?.forEach((path: any) => {
+      let totalLessons = 0;
+      let completedLessons = 0;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      path.modules?.forEach((module: any) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ?.sort((a: any, b: any) => a.order_index - b.order_index)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((module: any) => ({
-          ...module,
-          lessons: module.lessons
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ?.sort((a: any, b: any) => a.order_index - b.order_index)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .map((lesson: any) => ({
-              ...lesson,
+        module.lessons?.forEach((lesson: any) => {
+          totalLessons++;
+          if (userProgress[lesson.id]?.status === "completed") {
+            completedLessons++;
+          }
+        });
+      });
+
+      pathCompletions[path.order_index] = totalLessons > 0
+        ? Math.round((completedLessons / totalLessons) * 100)
+        : 0;
+    });
+
+    // Merge progress with lessons and add unlock status
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pathsWithProgress = paths?.map((path: any) => {
+      // Level is unlocked if it's the first level (order_index 1) 
+      // OR if previous level is 80% complete
+      const previousLevelCompletion = pathCompletions[path.order_index - 1] ?? 100;
+      const isUnlocked = path.order_index <= 1 || previousLevelCompletion >= 80;
+      const completionPercentage = pathCompletions[path.order_index];
+
+      return {
+        ...path,
+        isUnlocked,
+        completionPercentage,
+        modules: path.modules
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ?.sort((a: any, b: any) => a.order_index - b.order_index)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((module: any) => ({
+            ...module,
+            lessons: module.lessons
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              userProgress: userProgress[lesson.id as any] || { status: "not_started" },
-            })),
-        })),
-    }));
+              ?.sort((a: any, b: any) => a.order_index - b.order_index)
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              .map((lesson: any) => ({
+                ...lesson,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                userProgress: userProgress[lesson.id as any] || { status: "not_started" },
+              })),
+          })),
+      };
+    });
 
     return NextResponse.json(pathsWithProgress);
   } catch (error) {
