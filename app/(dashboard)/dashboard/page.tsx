@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { useUser } from "@/hooks/use-user";
 import { cn } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
 import { DashboardTour } from "@/components/dashboard-tour";
+import { createClient } from "@/lib/supabase/client";
 
 interface DailyChallenge {
   id: string;
@@ -26,6 +27,8 @@ interface PathWithProgress {
   icon: string;
   is_free: boolean;
   order_index: number;
+  progress: number;
+  locked: boolean;
   modules?: {
     title: string;
     lessons?: {
@@ -37,83 +40,171 @@ interface PathWithProgress {
 }
 
 export default function DashboardPage() {
-  const { profile, loading: userLoading } = useUser();
+  const { profile, loading: userLoading, authUser } = useUser();
   const searchParams = useSearchParams();
   const isNewUser = searchParams.get("tour") === "true";
+  const supabase = createClient();
 
-  const [paths] = useState<PathWithProgress[]>([]);
-  const [challenge] = useState<DailyChallenge | null>(null);
-  const [loading] = useState(true);
+  const [paths, setPaths] = useState<PathWithProgress[]>([]);
+  const [challenge, setChallenge] = useState<DailyChallenge | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentLesson, setCurrentLesson] = useState<{ id: string; title: string; path: string; module: string; progress: number } | null>(null);
 
-  // ... (existing useEffect) ...
+  useEffect(() => {
+    let mounted = true;
 
-  if (userLoading || loading) {
+    async function fetchData() {
+      if (!authUser) return;
+
+      try {
+        setLoading(true);
+
+        // 1. Fetch Learning Paths, Modules, and Lessons
+        const { data: pathsData, error: pathsError } = await supabase
+          .from("learning_paths")
+          .select(`
+            id, title, icon, is_free, order_index,
+            modules (
+              id, title, order_index,
+              lessons (
+                id, title, order_index
+              )
+            )
+          `)
+          .order("order_index", { ascending: true });
+
+        if (pathsError) throw pathsError;
+
+        // 2. Fetch User Progress (completed lessons)
+        const { data: userLessons, error: ulError } = await supabase
+          .from("user_lessons")
+          .select("lesson_id, status")
+          .eq("user_id", authUser.id);
+
+        if (ulError) throw ulError;
+
+        // Map progress to easy lookup
+        const progressMap = new Map();
+        userLessons?.forEach((ul) => {
+          progressMap.set(ul.lesson_id, ul.status);
+        });
+
+        // 3. Process Paths & Find Current Lesson
+        let foundCurrent = false;
+        let nextLessonToLearn: any = null;
+
+        const processedPaths = (pathsData || []).map((path: any) => {
+          // Sort modules and lessons
+          const modules = (path.modules || [])
+            .sort((a: any, b: any) => a.order_index - b.order_index)
+            .map((mod: any) => {
+              const lessons = (mod.lessons || [])
+                .sort((a: any, b: any) => a.order_index - b.order_index)
+                .map((lesson: any) => {
+                  const status = progressMap.get(lesson.id) || "not_started";
+
+                  // Check for current lesson candidate
+                  if (!foundCurrent) {
+                    if (status === "in_progress") {
+                      nextLessonToLearn = {
+                        id: lesson.id,
+                        title: lesson.title,
+                        path: path.title,
+                        module: mod.title,
+                        progress: 50
+                      };
+                      foundCurrent = true;
+                    } else if (status === "not_started") {
+                      nextLessonToLearn = {
+                        id: lesson.id,
+                        title: lesson.title,
+                        path: path.title,
+                        module: mod.title,
+                        progress: 0
+                      };
+                      foundCurrent = true;
+                    }
+                  }
+
+                  return {
+                    ...lesson,
+                    userProgress: { status }
+                  };
+                });
+              return { ...mod, lessons };
+            });
+
+          // Calculate Path Progress
+          const allLessons = modules.flatMap((m: any) => m.lessons);
+          const completedCount = allLessons.filter((l: any) => l.userProgress.status === "completed").length;
+          const totalCount = allLessons.length;
+          const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+          // Determine locked status (simple logic: locked if not free and previous not done? 
+          // For now, let's trust the is_free flag or just lock if 0 progress and not first path)
+          const isLocked = !path.is_free && progress === 0 && path.order_index > 1;
+
+          return {
+            title: path.title,
+            icon: path.icon,
+            is_free: path.is_free,
+            order_index: path.order_index,
+            progress,
+            locked: isLocked,
+            modules
+          };
+        });
+
+        if (mounted) {
+          setPaths(processedPaths);
+          setCurrentLesson(nextLessonToLearn);
+        }
+
+        // 4. Fetch Today's Challenge
+        const { data: challengeData } = await supabase
+          .from("daily_challenges")
+          .select("*")
+          .limit(1)
+          .maybeSingle(); // Just get one for now, logic can be improved to get "today's"
+
+        if (mounted && challengeData) {
+          setChallenge(challengeData);
+        }
+
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    if (!userLoading && authUser) {
+      fetchData();
+    }
+
+    return () => { mounted = false; };
+  }, [authUser, userLoading, supabase]);
+
+  if (userLoading || (loading && !paths.length)) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-dark-500">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary-100 border-t-primary-500 rounded-full animate-spin"></div>
+          <div className="text-dark-500">Loading your progress...</div>
+        </div>
       </div>
     );
   }
 
-  const userName = profile?.name || "Learner";
+  const userName = profile?.name || profile?.email?.split("@")[0] || "Learner";
   const streakDays = profile?.streak_days || 0;
   const totalXp = profile?.total_xp || 0;
-  const lessonsCompleted = profile?.total_lessons_completed || 0;
 
-  // Calculate total lessons across all paths
-  const totalLessons = paths.reduce((sum, path) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return sum + (path.modules?.reduce((mSum: number, mod: any) => mSum + (mod.lessons?.length || 0), 0) || 0);
+  // Recalculate global stats from our fresh data
+  const totalLessonsCount = paths.reduce((sum, p) => sum + (p.modules?.reduce((mSum, m) => mSum + (m.lessons?.length || 0), 0) || 0), 0);
+  const completedLessonsCount = paths.reduce((sum, p) => {
+    return sum + (p.modules?.reduce((mSum, m) => mSum + (m.lessons?.filter(l => l.userProgress?.status === "completed").length || 0), 0) || 0);
   }, 0);
-
-  // Find the current lesson (first in_progress or first not_started)
-  let currentLesson: { id: string; title: string; path: string; module: string; progress: number } | null = null;
-  for (const path of paths) {
-    for (const mod of path.modules || []) {
-      for (const lesson of mod.lessons || []) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const status = (lesson as any).userProgress?.status || "not_started";
-        if (status === "in_progress") {
-          currentLesson = {
-            id: lesson.id,
-            title: lesson.title,
-            path: path.title,
-            module: mod.title,
-            progress: 50,
-          };
-          break;
-        }
-        if (!currentLesson && status === "not_started") {
-          currentLesson = {
-            id: lesson.id,
-            title: lesson.title,
-            path: path.title,
-            module: mod.title,
-            progress: 0,
-          };
-        }
-      }
-      if (currentLesson && currentLesson.progress > 0) break;
-    }
-    if (currentLesson && currentLesson.progress > 0) break;
-  }
-
-  // Calculate per-path progress
-  const pathProgress = paths.map((path) => {
-    const lessons = path.modules?.flatMap((m) => m.lessons || []) || [];
-    const completed = lessons.filter(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (l: any) => l.userProgress?.status === "completed"
-    ).length;
-    const total = lessons.length;
-    const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
-    return {
-      title: path.title,
-      icon: path.icon,
-      progress,
-      locked: !path.is_free && progress === 0 && path.order_index > 1,
-    };
-  });
 
   return (
     <div>
@@ -137,14 +228,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Continue Learning Card */}
-      {currentLesson && (
+      {currentLesson ? (
         <Card className="mb-6">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-dark-900">Continue Learning</h2>
               <span className="text-sm text-dark-500">{currentLesson.path}</span>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex flex-col md:flex-row md:items-center gap-6">
               <div className="flex-1">
                 <h3 className="text-lg font-medium text-dark-900 mb-2">
                   {currentLesson.title}
@@ -154,12 +245,23 @@ export default function DashboardPage() {
                 </p>
                 <div className="flex items-center gap-4">
                   <Progress value={currentLesson.progress} className="flex-1" />
-                  <span className="text-sm text-dark-500">{currentLesson.progress}%</span>
+                  <span className="text-sm text-dark-500">{currentLesson.progress === 0 ? "Start" : `${currentLesson.progress}%`}</span>
                 </div>
               </div>
               <Link href={`/lessons/${currentLesson.id}`}>
-                <Button>Continue</Button>
+                <Button className="w-full md:w-auto">Continue Lesson</Button>
               </Link>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="mb-6">
+          <CardContent className="p-6 text-center">
+            <h3 className="font-semibold text-dark-900 mb-2">🎉 All Caught Up!</h3>
+            <p className="text-dark-500">You've completed all available lessons. Check out the projects or challenges!</p>
+            <div className="mt-4 flex justify-center gap-4">
+              <Link href="/projects"><Button variant="secondary">Browse Projects</Button></Link>
+              <Link href="/challenges"><Button>Daily Challenge</Button></Link>
             </div>
           </CardContent>
         </Card>
@@ -170,7 +272,7 @@ export default function DashboardPage() {
         <StatCard
           icon="📚"
           label="Lessons Completed"
-          value={`${lessonsCompleted} / ${totalLessons}`}
+          value={`${completedLessonsCount} / ${totalLessonsCount}`}
         />
         <StatCard
           icon="⏱️"
@@ -224,21 +326,21 @@ export default function DashboardPage() {
       )}
 
       {/* Learning Path Progress */}
-      {pathProgress.length > 0 && (
+      {paths.length > 0 && (
         <Card id="tour-paths">
           <CardContent className="p-6">
             <h2 className="font-semibold text-dark-900 mb-4">Your Learning Paths</h2>
             <div className="space-y-4">
-              {pathProgress.map((path) => (
+              {paths.map((path) => (
                 <div
                   key={path.title}
                   className={cn("flex items-center gap-4", path.locked && "opacity-50")}
                 >
                   <div className={cn(
-                    "w-10 h-10 rounded-lg flex items-center justify-center",
+                    "w-10 h-10 rounded-lg flex items-center justify-center text-xl",
                     path.locked ? "bg-dark-100" : "bg-primary-100"
                   )}>
-                    {path.icon}
+                    {path.icon || "📚"}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
