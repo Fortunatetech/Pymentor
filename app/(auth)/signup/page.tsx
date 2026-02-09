@@ -39,8 +39,8 @@ export default function SignupPage() {
       if (data.user && !data.session) {
         setCheckEmail(true);
       } else {
-        // If no confirmation needed (e.g. anonymous enabled or auto-confirm), go to dashboard
-        router.push("/dashboard?tour=true");
+        // If no confirmation needed (e.g. anonymous enabled or auto-confirm), go to onboarding
+        router.push("/onboarding");
       }
     }
   };

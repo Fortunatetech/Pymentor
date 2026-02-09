@@ -1,47 +1,53 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Subscription } from "@/types";
 
 export function useSubscription() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => {
-    const getSubscription = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        const { data } = await supabase
-          .from("subscriptions")
-          .select("*")
-          .eq("user_id", user.id)
-          .single();
-        
-        if (data) {
-          setSubscription(data as Subscription);
-        }
+  const fetchSubscription = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (data) {
+        setSubscription(data as Subscription);
       }
-      
-      setLoading(false);
-    };
+    }
 
-    getSubscription();
+    setLoading(false);
   }, [supabase]);
 
-  const isPro = subscription?.plan === "pro_monthly" || 
-                subscription?.plan === "pro_annual" || 
-                subscription?.plan === "lifetime";
+  useEffect(() => {
+    fetchSubscription();
+  }, [fetchSubscription]);
 
-  const isActive = subscription?.status === "active" || 
-                   subscription?.status === "trialing";
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    await fetchSubscription();
+  }, [fetchSubscription]);
 
-  return { 
-    subscription, 
-    loading, 
+  const isPro = subscription?.plan === "pro_monthly" ||
+    subscription?.plan === "pro_annual" ||
+    subscription?.plan === "lifetime";
+
+  const isActive = subscription?.status === "active" ||
+    subscription?.status === "trialing";
+
+  return {
+    subscription,
+    loading,
     isPro: isPro && isActive,
-    plan: subscription?.plan || "free"
+    plan: subscription?.plan || "free",
+    refresh,
   };
 }

@@ -31,8 +31,8 @@ export async function buildAIContext(
       context.user.learning_goal = profile.learning_goal || null;
       context.user.streak_count = profile.streak_days || 0;
     }
-  } catch {
-    // Profile fetch failed, use defaults
+  } catch (err) {
+    console.error("Profile fetch failed, using defaults:", err);
   }
 
   try {
@@ -44,8 +44,8 @@ export async function buildAIContext(
       .gte("mastery_level", 70);
 
     context.mastered_concepts = mastered?.map((m) => m.concept) || [];
-  } catch {
-    // user_progress table may not exist yet
+  } catch (err) {
+    console.error("Mastered concepts fetch failed:", err);
   }
 
   try {
@@ -58,8 +58,8 @@ export async function buildAIContext(
       .gt("practice_count", 0);
 
     context.struggling_concepts = struggling?.map((s) => s.concept) || [];
-  } catch {
-    // user_progress table may not exist yet
+  } catch (err) {
+    console.error("Struggling concepts fetch failed:", err);
   }
 
   try {
@@ -93,8 +93,8 @@ export async function buildAIContext(
         concepts: lesson.concepts_taught || [],
       };
     }
-  } catch {
-    // Lesson fetch failed, skip
+  } catch (err) {
+    console.error("Lesson fetch failed:", err);
   }
 
   return context;

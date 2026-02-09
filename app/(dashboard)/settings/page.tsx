@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,12 +12,13 @@ import Link from "next/link";
 export default function SettingsPage() {
   const { profile, authUser } = useUser();
   const { subscription, isPro } = useSubscription();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [name, setName] = useState("");
   const [dailyGoal, setDailyGoal] = useState(15);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -44,8 +45,9 @@ export default function SettingsPage() {
     if (!authUser) return;
     setSaving(true);
     setSaved(false);
+    setSaveError(null);
 
-    await supabase
+    const { error: updateError } = await supabase
       .from("profiles")
       .update({
         name,
@@ -55,6 +57,13 @@ export default function SettingsPage() {
       .eq("id", authUser.id);
 
     setSaving(false);
+
+    if (updateError) {
+      console.error("Failed to save profile:", updateError);
+      setSaveError("Failed to save changes. Please try again.");
+      return;
+    }
+
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -97,12 +106,19 @@ export default function SettingsPage() {
       return;
     }
 
-    const response = await fetch("/api/billing/cancel", {
-      method: "POST",
-    });
+    try {
+      const response = await fetch("/api/billing/cancel", {
+        method: "POST",
+      });
 
-    if (response.ok) {
-      window.location.reload();
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        const data = await response.json();
+        alert(data.error || "Failed to cancel subscription. Please try again.");
+      }
+    } catch {
+      alert("Network error. Please check your connection and try again.");
     }
   };
 
@@ -191,7 +207,10 @@ export default function SettingsPage() {
                 {saving ? "Saving..." : "Save Changes"}
               </Button>
               {saved && (
-                <span className="text-green-600 text-sm">✓ Saved!</span>
+                <span className="text-green-600 text-sm">Saved!</span>
+              )}
+              {saveError && (
+                <span className="text-red-500 text-sm">{saveError}</span>
               )}
             </div>
           </div>

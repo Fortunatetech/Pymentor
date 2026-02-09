@@ -3,7 +3,7 @@ export interface User {
   email: string;
   name: string | null;
   avatar_url: string | null;
-  skill_level: "beginner" | "intermediate" | "advanced";
+  skill_level: "beginner" | "intermediate" | "advanced" | null;
   learning_goal: "automation" | "data" | "web" | "general" | null;
   streak_days: number;
   longest_streak: number;

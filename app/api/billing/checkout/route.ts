@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
+import { billingCheckoutSchema, validateRequest } from "@/lib/validations";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-02-24.acacia",
@@ -20,9 +21,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { plan } = await req.json();
+    const parseResult = await validateRequest(req, billingCheckoutSchema);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "bad_request", message: parseResult.error },
+        { status: 400 }
+      );
+    }
 
-    if (!plan || !PRICES[plan as keyof typeof PRICES]) {
+    const { plan } = parseResult.data;
+
+    if (!PRICES[plan as keyof typeof PRICES]) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
 
@@ -31,7 +40,7 @@ export async function POST(req: NextRequest) {
       .from("subscriptions")
       .select("stripe_customer_id")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
     let customerId = subscription?.stripe_customer_id;
 

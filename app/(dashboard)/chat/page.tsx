@@ -54,9 +54,11 @@ export default function ChatPage() {
         if (res.ok) {
           const data = await res.json();
           setSessions(data);
+        } else {
+          console.error("Failed to load chat sessions:", res.status);
         }
-      } catch {
-        // Silent fail for session list
+      } catch (err) {
+        console.error("Failed to fetch chat sessions:", err);
       }
     }
     fetchSessions();
@@ -131,6 +133,9 @@ export default function ChatPage() {
     ]);
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -139,7 +144,10 @@ export default function ChatPage() {
           session_id: sessionId,
           lesson_id: lessonId || undefined,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeout);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -154,7 +162,7 @@ export default function ChatPage() {
               role: "assistant",
               content: isPro
                 ? "You've reached your daily message limit. Try again tomorrow!"
-                : "You've used all your free messages for today. [Upgrade to Pro](/pricing) for 500 messages per day!",
+                : "You've used all your free messages for today. Upgrade to Pro for 500 messages per day!",
               timestamp: new Date(),
             },
           ]);
@@ -208,6 +216,10 @@ export default function ChatPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error("Failed to send message:", err);
+      const errorMessage = err.name === "AbortError"
+        ? "Request timed out. Please try again."
+        : "Network error. Please check your connection and try again.";
+      setError(errorMessage);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId

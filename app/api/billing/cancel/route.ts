@@ -19,7 +19,7 @@ export async function POST() {
       .from("subscriptions")
       .select("stripe_subscription_id")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
     if (!subscription?.stripe_subscription_id) {
       return NextResponse.json({ error: "No subscription found" }, { status: 400 });

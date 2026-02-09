@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CodePlayground } from "@/components/editor/code-playground";
 
+import { PageLoading } from "@/components/ui/loading-spinner";
+
 interface TestCase {
   input: string;
   expected_output: string;
@@ -275,11 +277,7 @@ export default function ChallengePage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-dark-500">Loading challenge...</div>
-      </div>
-    );
+    return <PageLoading title="Loading challenge..." />;
   }
 
   if (!challenge) {

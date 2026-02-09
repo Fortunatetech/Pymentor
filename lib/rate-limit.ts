@@ -86,3 +86,41 @@ export const RATE_LIMITS = {
   codeRun: { limit: 50, windowMs: 60 * 60 * 1000 }, // 50 req/hr
   codeRunPro: { limit: 500, windowMs: 60 * 60 * 1000 }, // 500 req/hr
 } as const;
+
+/**
+ * Apply rate limit headers to a response
+ * Use this to inform clients about their rate limit status
+ */
+export function applyRateLimitHeaders(
+  headers: Headers,
+  result: RateLimitResult,
+  config: RateLimitConfig
+): void {
+  headers.set("X-RateLimit-Limit", String(result.limit));
+  headers.set("X-RateLimit-Remaining", String(result.remaining));
+  headers.set("X-RateLimit-Reset", String(Math.ceil((Date.now() + config.windowMs) / 1000)));
+
+  if (!result.allowed && result.retryAfterMs) {
+    headers.set("Retry-After", String(Math.ceil(result.retryAfterMs / 1000)));
+  }
+}
+
+/**
+ * Helper to create a rate-limited response with headers
+ */
+export function rateLimitedResponse<T>(
+  data: T,
+  rateLimitResult: RateLimitResult,
+  config: RateLimitConfig,
+  status: number = 200
+): Response {
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+  applyRateLimitHeaders(headers, rateLimitResult, config);
+
+  return new Response(JSON.stringify(data), {
+    status,
+    headers,
+  });
+}
+

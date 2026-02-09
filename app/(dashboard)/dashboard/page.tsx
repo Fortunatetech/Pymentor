@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
 import { DashboardTour } from "@/components/dashboard-tour";
 import { createClient } from "@/lib/supabase/client";
+
+import { PageLoading } from "@/components/ui/loading-spinner";
 
 interface DailyChallenge {
   id: string;
@@ -43,11 +45,12 @@ export default function DashboardPage() {
   const { profile, loading: userLoading, authUser } = useUser();
   const searchParams = useSearchParams();
   const isNewUser = searchParams.get("tour") === "true";
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [paths, setPaths] = useState<PathWithProgress[]>([]);
   const [challenge, setChallenge] = useState<DailyChallenge | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [currentLesson, setCurrentLesson] = useState<{ id: string; title: string; path: string; module: string; progress: number } | null>(null);
 
   useEffect(() => {
@@ -140,8 +143,7 @@ export default function DashboardPage() {
           const totalCount = allLessons.length;
           const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-          // Determine locked status (simple logic: locked if not free and previous not done? 
-          // For now, let's trust the is_free flag or just lock if 0 progress and not first path)
+          // Determine locked status
           const isLocked = !path.is_free && progress === 0 && path.order_index > 1;
 
           return {
@@ -160,19 +162,23 @@ export default function DashboardPage() {
           setCurrentLesson(nextLessonToLearn);
         }
 
-        // 4. Fetch Today's Challenge
+        // 4. Fetch Today's Challenge (or most recent)
+        const today = new Date().toISOString().split("T")[0];
         const { data: challengeData } = await supabase
           .from("daily_challenges")
           .select("*")
+          .lte("date", today)
+          .order("date", { ascending: false })
           .limit(1)
-          .maybeSingle(); // Just get one for now, logic can be improved to get "today's"
+          .maybeSingle();
 
         if (mounted && challengeData) {
           setChallenge(challengeData);
         }
 
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err);
+        if (mounted) setError("Failed to load dashboard data. Please refresh the page.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -185,30 +191,38 @@ export default function DashboardPage() {
     return () => { mounted = false; };
   }, [authUser, userLoading, supabase]);
 
+  // Recalculate global stats from our fresh data (must be before early return)
+  const totalLessonsCount = useMemo(() =>
+    paths.reduce((sum, p) => sum + (p.modules?.reduce((mSum, m) => mSum + (m.lessons?.length || 0), 0) || 0), 0),
+    [paths]
+  );
+  const completedLessonsCount = useMemo(() =>
+    paths.reduce((sum, p) => {
+      return sum + (p.modules?.reduce((mSum, m) => mSum + (m.lessons?.filter(l => l.userProgress?.status === "completed").length || 0), 0) || 0);
+    }, 0),
+    [paths]
+  );
+
   if (userLoading || (loading && !paths.length)) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary-100 border-t-primary-500 rounded-full animate-spin"></div>
-          <div className="text-dark-500">Loading your progress...</div>
-        </div>
-      </div>
-    );
+    return <PageLoading title="Loading your progress..." />;
   }
 
   const userName = profile?.name || profile?.email?.split("@")[0] || "Learner";
   const streakDays = profile?.streak_days || 0;
   const totalXp = profile?.total_xp || 0;
 
-  // Recalculate global stats from our fresh data
-  const totalLessonsCount = paths.reduce((sum, p) => sum + (p.modules?.reduce((mSum, m) => mSum + (m.lessons?.length || 0), 0) || 0), 0);
-  const completedLessonsCount = paths.reduce((sum, p) => {
-    return sum + (p.modules?.reduce((mSum, m) => mSum + (m.lessons?.filter(l => l.userProgress?.status === "completed").length || 0), 0) || 0);
-  }, 0);
-
   return (
     <div>
       <DashboardTour />
+      {/* Error banner */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-6 text-sm text-red-700 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 ml-4">
+            Dismiss
+          </button>
+        </div>
+      )}
       {/* Welcome Header */}
       <div id="tour-welcome" className="flex items-center justify-between mb-8">
         <div>
@@ -257,12 +271,24 @@ export default function DashboardPage() {
       ) : (
         <Card className="mb-6">
           <CardContent className="p-6 text-center">
-            <h3 className="font-semibold text-dark-900 mb-2">🎉 All Caught Up!</h3>
-            <p className="text-dark-500">You've completed all available lessons. Check out the projects or challenges!</p>
-            <div className="mt-4 flex justify-center gap-4">
-              <Link href="/projects"><Button variant="secondary">Browse Projects</Button></Link>
-              <Link href="/challenges"><Button>Daily Challenge</Button></Link>
-            </div>
+            {completedLessonsCount === 0 ? (
+              <>
+                <h3 className="font-semibold text-dark-900 mb-2">Ready to start learning?</h3>
+                <p className="text-dark-500">Begin your Python journey with your first lesson!</p>
+                <div className="mt-4">
+                  <Link href="/lessons"><Button>Start Your First Lesson</Button></Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="font-semibold text-dark-900 mb-2">All Caught Up!</h3>
+                <p className="text-dark-500">You've completed all available lessons. Check out the projects or challenges!</p>
+                <div className="mt-4 flex justify-center gap-4">
+                  <Link href="/projects"><Button variant="secondary">Browse Projects</Button></Link>
+                  <Link href="/challenges"><Button>Daily Challenge</Button></Link>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}

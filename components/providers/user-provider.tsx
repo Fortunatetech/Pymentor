@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@/types";
 
@@ -27,25 +27,36 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const [error, setError] = useState<Error | null>(null);
     const supabase = createClient();
 
-    const fetchProfile = useCallback(async (userId: string) => {
+    // Use ref to track current profile ID to avoid stale closures
+    const currentProfileIdRef = useRef<string | null>(null);
+
+    const fetchProfile = useCallback(async (userId: string, retryCount = 0): Promise<User | null> => {
+        const maxRetries = 5;
+        const retryDelay = 1000; // ms
+
         try {
-            const { data, error } = await supabase
+            const { data, error: fetchError } = await supabase
                 .from("profiles")
                 .select("*")
                 .eq("id", userId)
                 .single();
 
-            if (error) {
-                // If no profile found, maybe create one? Or just log.
-                // For now, log error.
-                console.error("Error fetching profile:", error);
-                throw error;
+            if (fetchError) {
+                // Profile might not be created yet (race condition with signup trigger)
+                if (fetchError.code === 'PGRST116' && retryCount < maxRetries) {
+                    // No rows returned - profile not created yet, retry after delay
+                    console.log(`Profile not found, retrying (${retryCount + 1}/${maxRetries})...`);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                    return fetchProfile(userId, retryCount + 1);
+                }
+                console.error("Error fetching profile:", fetchError);
+                return null;
             }
 
-            setProfile(data as User);
-        } catch (err: any) {
+            return data as User;
+        } catch (err) {
             console.error("Error in fetchProfile:", err);
-            // Don't set global error here to avoid blocking UI heavily
+            return null;
         }
     }, [supabase]);
 
@@ -61,14 +72,19 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                 if (mounted) {
                     if (user) {
                         setAuthUser({ id: user.id, email: user.email! });
-                        await fetchProfile(user.id);
+                        const fetchedProfile = await fetchProfile(user.id);
+                        if (mounted && fetchedProfile) {
+                            setProfile(fetchedProfile);
+                            currentProfileIdRef.current = fetchedProfile.id;
+                        }
                     } else {
                         setAuthUser(null);
                         setProfile(null);
+                        currentProfileIdRef.current = null;
                     }
                 }
-            } catch (err: any) {
-                if (mounted) setError(err);
+            } catch (err) {
+                if (mounted) setError(err as Error);
             } finally {
                 if (mounted) setLoading(false);
             }
@@ -78,22 +94,33 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
+                if (!mounted) return;
+
                 if (session?.user) {
-                    if (mounted) {
-                        setAuthUser({ id: session.user.id, email: session.user.email! });
-                        // Only fetch profile if we don't have it or if the user changed
-                        // Or if we just signed in (event === 'SIGNED_IN')
-                        if (!profile || profile.id !== session.user.id || event === 'SIGNED_IN') {
-                            await fetchProfile(session.user.id);
+                    const userId = session.user.id;
+                    setAuthUser({ id: userId, email: session.user.email! });
+
+                    // Always fetch profile on SIGNED_IN or if user ID changed
+                    const shouldFetch =
+                        event === 'SIGNED_IN' ||
+                        event === 'TOKEN_REFRESHED' ||
+                        currentProfileIdRef.current !== userId;
+
+                    if (shouldFetch) {
+                        setLoading(true);
+                        const fetchedProfile = await fetchProfile(userId);
+                        if (mounted && fetchedProfile) {
+                            setProfile(fetchedProfile);
+                            currentProfileIdRef.current = fetchedProfile.id;
                         }
+                        if (mounted) setLoading(false);
                     }
                 } else {
-                    if (mounted) {
-                        setAuthUser(null);
-                        setProfile(null);
-                    }
+                    setAuthUser(null);
+                    setProfile(null);
+                    currentProfileIdRef.current = null;
+                    setLoading(false);
                 }
-                if (mounted) setLoading(false);
             }
         );
 
@@ -103,20 +130,23 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         };
     }, [supabase, fetchProfile]);
 
-    const refreshProfile = async () => {
+    const refreshProfile = useCallback(async () => {
         if (authUser) {
-            // Don't set global loading to true to avoid full screen spinner, 
-            // just update in background or use a local loading state if needed.
-            // But user likely wants to see update.
-            // Let's keep existing behavior or maybe just await.
-            await fetchProfile(authUser.id);
+            const fetchedProfile = await fetchProfile(authUser.id);
+            if (fetchedProfile) {
+                setProfile(fetchedProfile);
+                currentProfileIdRef.current = fetchedProfile.id;
+            }
         }
-    };
+    }, [authUser, fetchProfile]);
 
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         await supabase.auth.signOut();
+        setAuthUser(null);
+        setProfile(null);
+        currentProfileIdRef.current = null;
         window.location.href = "/";
-    };
+    }, [supabase]);
 
     return (
         <UserContext.Provider value={{ authUser, profile, loading, error, refreshProfile, signOut }}>

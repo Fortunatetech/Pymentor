@@ -448,11 +448,27 @@ export default function LessonPage() {
               </div>
             )}
           </div>
+
+          {/* Mobile: Ask Py Button */}
+          <div className="lg:hidden mt-8 p-4 bg-primary-50 rounded-xl border border-primary-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white font-semibold">
+                Py
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-dark-900">Need help?</p>
+                <p className="text-sm text-dark-500">Chat with Py about this lesson</p>
+              </div>
+              <Link href={`/chat?lesson_id=${lessonId}&lesson_title=${encodeURIComponent(lesson.title)}`}>
+                <Button size="sm">Ask Py</Button>
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Right: AI Chat Sidebar */}
-      <div className="w-96 bg-dark-50 flex flex-col hidden lg:flex">
+      <div className="w-96 bg-dark-50 flex-col hidden lg:flex">
         <div className="p-4 border-b border-dark-200 bg-white">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white">

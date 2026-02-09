@@ -1,6 +1,23 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Security headers for all responses
+const securityHeaders = {
+  "X-Frame-Options": "DENY",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "X-XSS-Protection": "1; mode=block",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+};
+
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  Object.entries(securityHeaders).forEach(([key, value]) => {
+    response.headers.set(key, value);
+  });
+  return response;
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -36,27 +53,39 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Protected routes
-  const protectedPaths = ["/dashboard", "/lessons", "/chat", "/projects", "/progress"];
-  const isProtectedPath = protectedPaths.some(path => 
+  // Protected routes - all dashboard features require authentication
+  const protectedPaths = [
+    "/dashboard",
+    "/lessons",
+    "/chat",
+    "/projects",
+    "/progress",
+    "/challenges",
+    "/leaderboard",
+    "/settings",
+    "/onboarding",
+  ];
+  const isProtectedPath = protectedPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
   );
 
   if (isProtectedPath && !user) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const redirectResponse = NextResponse.redirect(new URL("/login", request.url));
+    return applySecurityHeaders(redirectResponse);
   }
 
   // Redirect logged-in users away from auth pages
   const authPaths = ["/login", "/signup"];
-  const isAuthPath = authPaths.some(path => 
+  const isAuthPath = authPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
   );
 
   if (isAuthPath && user) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    const redirectResponse = NextResponse.redirect(new URL("/dashboard", request.url));
+    return applySecurityHeaders(redirectResponse);
   }
 
-  return response;
+  return applySecurityHeaders(response);
 }
 
 export const config = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 
@@ -40,10 +40,21 @@ export function CodePlayground({
   readOnly = false,
   lessonId,
 }: CodePlaygroundProps) {
-  const [code, setCode] = useState(initialCode);
+  // Generate storage key based on lessonId or a hash of initialCode
+  const storageKey = lessonId ? `pymentor-code-${lessonId}` : null;
+
+  const [code, setCode] = useState(() => {
+    // Try to load from localStorage on initial render
+    if (storageKey && typeof window !== "undefined") {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) return saved;
+    }
+    return initialCode;
+  });
   const [output, setOutput] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [testResults, setTestResults] = useState<{ passed: boolean; description: string; expected: string; actual?: string }[]>([]);
@@ -53,11 +64,17 @@ export function CodePlayground({
   const [isFetchingDiagnostics, setIsFetchingDiagnostics] = useState(false);
   const pyodideRef = useRef<any>(null);
 
+  // Save code to localStorage when it changes
   useEffect(() => {
-    loadPyodide();
-  }, []);
+    if (storageKey && code !== initialCode) {
+      localStorage.setItem(storageKey, code);
+    }
+  }, [code, storageKey, initialCode]);
 
-  const loadPyodide = async () => {
+  const loadPyodideEnv = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+
     try {
       // Load Pyodide script if not already loaded
       if (!window.loadPyodide) {
@@ -79,10 +96,15 @@ export function CodePlayground({
 
       setIsLoading(false);
     } catch (err) {
-      setError("Failed to load Python environment");
+      setLoadError("Failed to load Python environment");
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadPyodideEnv();
+  }, [loadPyodideEnv]);
+
 
   const runCode = async () => {
     if (!pyodideRef.current || isRunning) return;
@@ -314,19 +336,40 @@ sys.stdout = StringIO()
 
       {/* Code Editor */}
       <div className="relative">
-        <textarea
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          onKeyDown={handleKeyDown}
-          readOnly={readOnly}
-          className="w-full bg-transparent text-green-400 font-mono text-sm p-4 resize-none focus:outline-none min-h-[200px]"
-          style={{ lineHeight: "1.5" }}
-          spellCheck={false}
-          placeholder="# Write your Python code here"
-        />
-        <div className="absolute bottom-2 right-2 text-xs text-dark-500">
-          Ctrl+Enter to run
-        </div>
+        {loadError ? (
+          <div className="flex flex-col items-center justify-center min-h-[200px] p-6 text-center">
+            <div className="text-4xl mb-3">
+              <svg className="w-12 h-12 text-red-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <p className="text-red-400 font-medium mb-2">{loadError}</p>
+            <p className="text-dark-400 text-sm mb-4">Check your internet connection and try again.</p>
+            <Button
+              size="sm"
+              onClick={loadPyodideEnv}
+              className="bg-primary-600 hover:bg-primary-700 text-white"
+            >
+              Retry Loading Python
+            </Button>
+          </div>
+        ) : (
+          <>
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={handleKeyDown}
+              readOnly={readOnly}
+              className="w-full bg-transparent text-green-400 font-mono text-sm p-4 resize-none focus:outline-none min-h-[200px]"
+              style={{ lineHeight: "1.5" }}
+              spellCheck={false}
+              placeholder="# Write your Python code here"
+            />
+            <div className="absolute bottom-2 right-2 text-xs text-dark-500">
+              Ctrl+Enter to run
+            </div>
+          </>
+        )}
       </div>
 
       {/* Output */}

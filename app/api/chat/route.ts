@@ -1,14 +1,3 @@
-// ============================================
-// CLAUDE IMPLEMENTATION (Commented out)
-// ============================================
-// import Anthropic from "@anthropic-ai/sdk";
-// const anthropic = new Anthropic({
-//   apiKey: process.env.ANTHROPIC_API_KEY,
-// });
-
-// ============================================
-// GEMINI IMPLEMENTATION (Active)
-// ============================================
 import {
   GoogleGenerativeAI,
   HarmCategory,
@@ -18,10 +7,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildAIContext } from "@/lib/ai/build-context";
 import type { AIContext } from "@/types";
+import { chatMessageSchema, validateRequest } from "@/lib/validations";
 
 export const maxDuration = 60;
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY environment variable is required");
+}
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const SYSTEM_PROMPT = `You are Py, a friendly and patient AI Python tutor. Your goal is to help beginners learn Python programming through encouragement, simple explanations, and guided practice.
 
@@ -120,7 +114,7 @@ export async function POST(req: NextRequest) {
       .from("subscriptions")
       .select("plan, status")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
     const isPro =
       subscription &&
@@ -167,14 +161,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { message, session_id, lesson_id } = await req.json();
+    const parseResult = await validateRequest(req, chatMessageSchema);
 
-    if (!message) {
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: "bad_request", message: "Message is required" },
+        { error: "bad_request", message: parseResult.error },
         { status: 400 }
       );
     }
+
+    const { message, session_id, lesson_id } = parseResult.data;
 
     // Session management: use existing or create new
     let sessionId = session_id;
@@ -301,6 +297,16 @@ export async function POST(req: NextRequest) {
           controller.close();
         } catch (err) {
           console.error("Gemini streaming error:", err);
+
+          // Save partial response to avoid orphaned user messages
+          if (fullResponse) {
+            await supabase.from("chat_messages").insert({
+              session_id: sessionId,
+              role: "assistant",
+              content: fullResponse,
+            });
+          }
+
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ type: "error", message: "Stream interrupted" })}\n\n`)
           );
@@ -317,82 +323,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // ============================================
-    // CLAUDE STREAMING IMPLEMENTATION (Commented out)
-    // ============================================
-    // const messages: Anthropic.MessageParam[] = [];
-    // if (dbHistory) {
-    //   for (const msg of dbHistory) {
-    //     messages.push({ role: msg.role, content: msg.content });
-    //   }
-    // }
-    // messages.push({ role: "user", content: message });
-    //
-    // const stream = anthropic.messages.stream({
-    //   model: "claude-sonnet-4-20250514",
-    //   max_tokens: 1024,
-    //   system: fullSystemPrompt,
-    //   messages,
-    // });
-    //
-    // let fullResponse = "";
-    //
-    // const readableStream = new ReadableStream({
-    //   async start(controller) {
-    //     const encoder = new TextEncoder();
-    //
-    //     controller.enqueue(
-    //       encoder.encode(`data: ${JSON.stringify({ type: "session_id", session_id: sessionId })}\n\n`)
-    //     );
-    //
-    //     try {
-    //       for await (const event of stream) {
-    //         if (
-    //           event.type === "content_block_delta" &&
-    //           event.delta.type === "text_delta"
-    //         ) {
-    //           const text = event.delta.text;
-    //           fullResponse += text;
-    //           controller.enqueue(
-    //             encoder.encode(`data: ${JSON.stringify({ type: "text", text })}\n\n`)
-    //           );
-    //         }
-    //       }
-    //
-    //       await supabase.from("chat_messages").insert({
-    //         session_id: sessionId,
-    //         role: "assistant",
-    //         content: fullResponse,
-    //       });
-    //
-    //       await supabase
-    //         .from("chat_sessions")
-    //         .update({
-    //           message_count: (dbHistory?.length || 0) + 2,
-    //           updated_at: new Date().toISOString(),
-    //         })
-    //         .eq("id", sessionId);
-    //
-    //       controller.enqueue(
-    //         encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`)
-    //       );
-    //       controller.close();
-    //     } catch (err) {
-    //       controller.enqueue(
-    //         encoder.encode(`data: ${JSON.stringify({ type: "error", message: "Stream interrupted" })}\n\n`)
-    //       );
-    //       controller.close();
-    //     }
-    //   },
-    // });
-    //
-    // return new Response(readableStream, {
-    //   headers: {
-    //     "Content-Type": "text/event-stream",
-    //     "Cache-Control": "no-cache",
-    //     Connection: "keep-alive",
-    //   },
-    // });
   } catch (error) {
     console.error("Chat API error:", error);
     return NextResponse.json(
