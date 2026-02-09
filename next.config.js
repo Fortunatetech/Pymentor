@@ -1,3 +1,5 @@
+const { withSentryConfig } = require("@sentry/nextjs");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -29,4 +31,18 @@ if (process.env.NODE_ENV === "production" && !process.env.SKIP_ENV_VALIDATION) {
   }
 }
 
-module.exports = nextConfig;
+module.exports = withSentryConfig(nextConfig, {
+  org: "fortech-jf",
+  project: "javascript-nextjs",
+  silent: !process.env.CI,
+
+  // Upload source maps for readable stack traces
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Route Sentry requests through your server to avoid ad-blockers
+  tunnelRoute: "/monitoring",
+
+  // Disable Sentry webpack plugin in development
+  disableServerWebpackPlugin: process.env.NODE_ENV !== "production",
+  disableClientWebpackPlugin: process.env.NODE_ENV !== "production",
+});
