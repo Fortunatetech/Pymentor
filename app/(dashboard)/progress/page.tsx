@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Streak, XPDisplay } from "@/components/ui/streak";
@@ -18,7 +18,8 @@ interface WeeklyDay {
 }
 
 export default function ProgressPage() {
-  const { profile, loading: userLoading } = useUser();
+  const { profile, authUser, loading: userLoading } = useUser();
+  const supabase = useMemo(() => createClient(), []);
   const [concepts, setConcepts] = useState<ConceptMastery[]>([]);
   const [weeklyActivity, setWeeklyActivity] = useState<WeeklyDay[]>([]);
   const [totalLessons, setTotalLessons] = useState(0);
@@ -26,48 +27,57 @@ export default function ProgressPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!authUser || userLoading) return;
+
+    let mounted = true;
+
     async function fetchProgress() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const now = new Date();
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - now.getDay());
+      weekStart.setHours(0, 0, 0, 0);
 
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      // Fetch concept mastery
-      const { data: conceptData } = await supabase
-        .from("user_progress")
-        .select("concept, mastery_level")
-        .eq("user_id", user.id)
-        .order("mastery_level", { ascending: false });
-
-      if (conceptData) {
-        setConcepts(conceptData);
-      }
-
-      // Fetch total lesson count
-      const { count } = await supabase
-        .from("lessons")
-        .select("id", { count: "exact", head: true });
-
-      setTotalLessons(count || 0);
-
-      // Check if any learning path is fully completed
-      const { data: paths } = await supabase
-        .from("learning_paths")
-        .select("id, modules(id, lessons(id))");
-
-      if (paths) {
-        const { data: completedLessons } = await supabase
+      // Run all queries in parallel
+      const [conceptResult, lessonCountResult, pathsResult, completedResult, weekResult] = await Promise.all([
+        supabase
+          .from("user_progress")
+          .select("concept, mastery_level")
+          .eq("user_id", authUser!.id)
+          .order("mastery_level", { ascending: false }),
+        supabase
+          .from("lessons")
+          .select("id", { count: "exact", head: true }),
+        supabase
+          .from("learning_paths")
+          .select("id, modules(id, lessons(id))"),
+        supabase
           .from("user_lessons")
           .select("lesson_id")
-          .eq("user_id", user.id)
-          .eq("status", "completed");
+          .eq("user_id", authUser!.id)
+          .eq("status", "completed"),
+        supabase
+          .from("user_lessons")
+          .select("time_spent, started_at, completed_at")
+          .eq("user_id", authUser!.id)
+          .gte("started_at", weekStart.toISOString()),
+      ]);
 
-        const completedIds = new Set(completedLessons?.map((l) => l.lesson_id) || []);
+      if (!mounted) return;
 
-        for (const path of paths) {
+      // Process concept mastery
+      if (conceptResult.data) {
+        setConcepts(conceptResult.data);
+      }
+
+      // Process total lesson count
+      setTotalLessons(lessonCountResult.count || 0);
+
+      // Process path completion
+      if (pathsResult.data) {
+        const completedIds = new Set(completedResult.data?.map((l) => l.lesson_id) || []);
+
+        for (const path of pathsResult.data) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const pathLessons = (path.modules as any[])?.flatMap(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,24 +90,12 @@ export default function ProgressPage() {
         }
       }
 
-      // Calculate weekly activity from user_lessons
-      const now = new Date();
-      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const weekStart = new Date(now);
-      weekStart.setDate(now.getDate() - now.getDay());
-      weekStart.setHours(0, 0, 0, 0);
-
-      const { data: weekLessons } = await supabase
-        .from("user_lessons")
-        .select("time_spent, started_at, completed_at")
-        .eq("user_id", user.id)
-        .gte("started_at", weekStart.toISOString());
-
+      // Process weekly activity
       const dailyMinutes: Record<string, number> = {};
       for (const d of dayNames) dailyMinutes[d] = 0;
 
-      if (weekLessons) {
-        for (const lesson of weekLessons) {
+      if (weekResult.data) {
+        for (const lesson of weekResult.data) {
           const date = new Date(lesson.started_at || lesson.completed_at);
           const dayName = dayNames[date.getDay()];
           dailyMinutes[dayName] += Math.round((lesson.time_spent || 0) / 60);
@@ -112,7 +110,9 @@ export default function ProgressPage() {
     }
 
     fetchProgress();
-  }, []);
+
+    return () => { mounted = false; };
+  }, [authUser, userLoading, supabase]);
 
   if (userLoading || loading) {
     return (

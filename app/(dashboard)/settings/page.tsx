@@ -143,8 +143,13 @@ export default function SettingsPage() {
         setDeleteError(data.error || "Failed to delete account");
         setDeleting(false);
       } else {
-        // Success! Sign out and redirect
-        await supabase.auth.signOut();
+        // User is already deleted server-side. Sign out locally and redirect.
+        // signOut may fail since the user no longer exists — that's fine.
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // Expected — user was already deleted from auth.users
+        }
         window.location.href = "/";
       }
     } catch {

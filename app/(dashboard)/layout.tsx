@@ -23,8 +23,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { profile, signOut } = useUser();
-  const { isPro } = useSubscription();
+  const { profile, authUser, signOut } = useUser();
+  const { isPro } = useSubscription(authUser?.id);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const userName = profile?.name || profile?.email?.split("@")[0] || "User";
@@ -123,10 +123,10 @@ export default function DashboardLayout({
             </div>
             <button
               onClick={signOut}
-              className="text-dark-400 hover:text-dark-600 text-sm"
+              className="text-dark-400 hover:text-red-500 text-xs font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
               title="Sign out"
             >
-              ↩
+              Sign out
             </button>
           </div>
         </div>

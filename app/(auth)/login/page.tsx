@@ -29,7 +29,17 @@ export default function LoginPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      router.push("/dashboard");
+      // Check if user has completed onboarding
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("learning_goal")
+        .single();
+
+      if (!profile?.learning_goal) {
+        router.push("/onboarding");
+      } else {
+        router.push("/dashboard");
+      }
     }
   };
 

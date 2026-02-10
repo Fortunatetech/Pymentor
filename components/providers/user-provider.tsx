@@ -31,8 +31,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const currentProfileIdRef = useRef<string | null>(null);
 
     const fetchProfile = useCallback(async (userId: string, retryCount = 0): Promise<User | null> => {
-        const maxRetries = 5;
-        const retryDelay = 1000; // ms
+        const maxRetries = 3;
+        const retryDelay = 500; // ms
 
         try {
             const { data, error: fetchError } = await supabase
@@ -100,20 +100,25 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
                     const userId = session.user.id;
                     setAuthUser({ id: userId, email: session.user.email! });
 
-                    // Always fetch profile on SIGNED_IN or if user ID changed
+                    // Fetch profile on SIGNED_IN or if user ID changed
+                    // Don't re-set loading on TOKEN_REFRESHED to avoid UI flash
                     const shouldFetch =
                         event === 'SIGNED_IN' ||
                         event === 'TOKEN_REFRESHED' ||
                         currentProfileIdRef.current !== userId;
 
                     if (shouldFetch) {
-                        setLoading(true);
+                        if (event !== 'TOKEN_REFRESHED') {
+                            setLoading(true);
+                        }
                         const fetchedProfile = await fetchProfile(userId);
                         if (mounted && fetchedProfile) {
                             setProfile(fetchedProfile);
                             currentProfileIdRef.current = fetchedProfile.id;
                         }
-                        if (mounted) setLoading(false);
+                        if (mounted && event !== 'TOKEN_REFRESHED') {
+                            setLoading(false);
+                        }
                     }
                 } else {
                     setAuthUser(null);

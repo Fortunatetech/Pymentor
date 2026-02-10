@@ -62,28 +62,38 @@ export default function DashboardPage() {
       try {
         setLoading(true);
 
-        // 1. Fetch Learning Paths, Modules, and Lessons
-        const { data: pathsData, error: pathsError } = await supabase
-          .from("learning_paths")
-          .select(`
-            id, title, icon, is_free, order_index,
-            modules (
-              id, title, order_index,
-              lessons (
-                id, title, order_index
+        // Fetch paths, user lessons, and daily challenge in parallel
+        const today = new Date().toISOString().split("T")[0];
+        const [pathsResult, userLessonsResult, challengeResult] = await Promise.all([
+          supabase
+            .from("learning_paths")
+            .select(`
+              id, title, icon, is_free, order_index,
+              modules (
+                id, title, order_index,
+                lessons (
+                  id, title, order_index
+                )
               )
-            )
-          `)
-          .order("order_index", { ascending: true });
+            `)
+            .order("order_index", { ascending: true }),
+          supabase
+            .from("user_lessons")
+            .select("lesson_id, status")
+            .eq("user_id", authUser.id),
+          supabase
+            .from("daily_challenges")
+            .select("*")
+            .lte("date", today)
+            .order("date", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
 
+        const { data: pathsData, error: pathsError } = pathsResult;
         if (pathsError) throw pathsError;
 
-        // 2. Fetch User Progress (completed lessons)
-        const { data: userLessons, error: ulError } = await supabase
-          .from("user_lessons")
-          .select("lesson_id, status")
-          .eq("user_id", authUser.id);
-
+        const { data: userLessons, error: ulError } = userLessonsResult;
         if (ulError) throw ulError;
 
         // Map progress to easy lookup
@@ -162,18 +172,9 @@ export default function DashboardPage() {
           setCurrentLesson(nextLessonToLearn);
         }
 
-        // 4. Fetch Today's Challenge (or most recent)
-        const today = new Date().toISOString().split("T")[0];
-        const { data: challengeData } = await supabase
-          .from("daily_challenges")
-          .select("*")
-          .lte("date", today)
-          .order("date", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (mounted && challengeData) {
-          setChallenge(challengeData);
+        // Set daily challenge from parallel fetch
+        if (mounted && challengeResult.data) {
+          setChallenge(challengeResult.data);
         }
 
       } catch (err) {
@@ -203,8 +204,12 @@ export default function DashboardPage() {
     [paths]
   );
 
-  if (userLoading || (loading && !paths.length)) {
+  if (userLoading) {
     return <PageLoading title="Loading your progress..." />;
+  }
+
+  if (loading && !paths.length) {
+    return <DashboardSkeleton />;
   }
 
   const userName = profile?.name || profile?.email?.split("@")[0] || "Learner";
@@ -411,5 +416,67 @@ function StatCard({
         <div className="text-2xl font-bold text-dark-900">{value}</div>
       </CardContent>
     </Card>
+  );
+}
+
+function SkeletonBlock({ className }: { className?: string }) {
+  return <div className={cn("animate-pulse bg-dark-100 rounded-lg", className)} />;
+}
+
+function DashboardSkeleton() {
+  return (
+    <div>
+      {/* Welcome header skeleton */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <SkeletonBlock className="h-8 w-64 mb-2" />
+          <SkeletonBlock className="h-5 w-80" />
+        </div>
+        <div className="flex items-center gap-4">
+          <SkeletonBlock className="h-10 w-20 rounded-full" />
+          <SkeletonBlock className="h-10 w-20 rounded-full" />
+        </div>
+      </div>
+
+      {/* Continue learning skeleton */}
+      <Card className="mb-6">
+        <CardContent className="p-6">
+          <SkeletonBlock className="h-5 w-40 mb-4" />
+          <SkeletonBlock className="h-6 w-64 mb-2" />
+          <SkeletonBlock className="h-4 w-32 mb-4" />
+          <SkeletonBlock className="h-3 w-full" />
+        </CardContent>
+      </Card>
+
+      {/* Stats grid skeleton */}
+      <div className="grid md:grid-cols-3 gap-4 mb-6">
+        {[1, 2, 3].map((i) => (
+          <Card key={i}>
+            <CardContent className="p-5">
+              <SkeletonBlock className="h-4 w-24 mb-3" />
+              <SkeletonBlock className="h-8 w-16" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Learning paths skeleton */}
+      <Card>
+        <CardContent className="p-6">
+          <SkeletonBlock className="h-5 w-44 mb-4" />
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-4">
+                <SkeletonBlock className="w-10 h-10" />
+                <div className="flex-1">
+                  <SkeletonBlock className="h-4 w-48 mb-2" />
+                  <SkeletonBlock className="h-3 w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -4,19 +4,24 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Subscription } from "@/types";
 
-export function useSubscription() {
+export function useSubscription(userId?: string | null) {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = useMemo(() => createClient(), []);
 
   const fetchSubscription = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    // Use provided userId to avoid redundant auth.getUser() call
+    let resolvedUserId = userId;
+    if (!resolvedUserId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      resolvedUserId = user?.id;
+    }
 
-    if (user) {
+    if (resolvedUserId) {
       const { data } = await supabase
         .from("subscriptions")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", resolvedUserId)
         .maybeSingle();
 
       if (data) {
@@ -25,7 +30,7 @@ export function useSubscription() {
     }
 
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, userId]);
 
   useEffect(() => {
     fetchSubscription();
