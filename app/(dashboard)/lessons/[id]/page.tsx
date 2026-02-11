@@ -8,6 +8,9 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { CodePlayground } from "@/components/editor/code-playground";
 import { useLessonTimer } from "@/hooks/use-lesson-timer";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 interface LessonData {
   id: string;
@@ -161,16 +164,16 @@ export default function LessonPage() {
   let exerciseIndex = 0;
 
   return (
-    <div className="flex min-h-screen -m-8">
+    <div className="flex min-h-screen -mx-4 -mb-4 lg:-m-8">
       {/* Left: Lesson Content */}
-      <div className="flex-1 p-8 overflow-auto bg-white border-r border-dark-200">
+      <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto bg-white lg:border-r border-dark-200">
         <div className="max-w-2xl mx-auto">
           {/* Completion feedback overlay */}
           {completionResult && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-2xl p-8 max-w-sm text-center shadow-xl">
-                <div className="text-5xl mb-4">🎉</div>
-                <h2 className="text-2xl font-bold text-dark-900 mb-2">
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-sm w-full text-center shadow-xl">
+                <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">🎉</div>
+                <h2 className="text-xl sm:text-2xl font-bold text-dark-900 mb-2">
                   Lesson Complete!
                 </h2>
                 <div className="space-y-2 text-dark-600">
@@ -194,27 +197,27 @@ export default function LessonPage() {
           )}
 
           {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-sm text-dark-500 mb-6">
-            <Link href="/lessons" className="hover:text-dark-700">
+          <div className="flex items-center gap-2 text-xs sm:text-sm text-dark-500 mb-4 sm:mb-6">
+            <Link href="/lessons" className="hover:text-dark-700 truncate">
               {pathTitle}
             </Link>
-            <span>&rsaquo;</span>
-            <span>{moduleTitle}</span>
+            <span className="flex-shrink-0">&rsaquo;</span>
+            <span className="truncate">{moduleTitle}</span>
           </div>
 
           {/* Header */}
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-dark-900 mb-2">
+          <div className="mb-4 sm:mb-6">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-dark-900 mb-2">
               {lesson.title}
             </h1>
-            <div className="flex items-center gap-4 text-sm text-dark-500">
+            <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-dark-500">
               <span>{lesson.estimated_minutes} min</span>
               <span>{lesson.xp_reward} XP</span>
             </div>
           </div>
 
           {/* Progress */}
-          <div className="flex items-center gap-3 mb-8 p-4 bg-dark-50 rounded-xl">
+          <div className="flex items-center gap-3 mb-6 sm:mb-8 p-3 sm:p-4 bg-dark-50 rounded-xl">
             <Progress
               value={
                 exerciseCount > 0
@@ -238,33 +241,64 @@ export default function LessonPage() {
             {sections.map((section: any, index: number) => {
               if (section.type === "text") {
                 return (
-                  <p
+                  <div
                     key={index}
-                    className="text-dark-600 leading-relaxed"
-                    dangerouslySetInnerHTML={{
-                      __html: section.content
-                        .replace(
-                          /\*\*(.*?)\*\*/g,
-                          "<strong>$1</strong>"
-                        )
-                        .replace(
-                          /`(.*?)`/g,
-                          '<code class="bg-dark-100 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>'
-                        ),
-                    }}
-                  />
+                    className="text-dark-600 leading-relaxed prose prose-sm sm:prose-base max-w-none
+                      prose-headings:text-dark-900 prose-headings:font-bold prose-headings:mt-6 prose-headings:mb-3
+                      prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg
+                      prose-p:mb-4 prose-p:leading-relaxed
+                      prose-a:text-primary-600 prose-a:no-underline hover:prose-a:underline
+                      prose-strong:text-dark-800 prose-strong:font-semibold
+                      prose-ul:my-3 prose-ol:my-3 prose-li:my-1
+                      prose-blockquote:border-primary-300 prose-blockquote:text-dark-500 prose-blockquote:italic
+                      prose-pre:bg-transparent prose-pre:p-0
+                      prose-img:rounded-xl prose-img:shadow-sm"
+                  >
+                    <ReactMarkdown
+                      components={{
+                        code({ className, children, ...props }) {
+                          const match = /language-(\w+)/.exec(className || "");
+                          const inline = !match;
+                          if (inline) {
+                            return (
+                              <code
+                                className="bg-dark-100 px-1.5 py-0.5 rounded text-sm font-mono text-dark-700"
+                                {...props}
+                              >
+                                {children}
+                              </code>
+                            );
+                          }
+                          return (
+                            <SyntaxHighlighter
+                              style={oneDark}
+                              language={match[1]}
+                              PreTag="div"
+                              className="rounded-xl !my-3"
+                            >
+                              {String(children).replace(/\n$/, "")}
+                            </SyntaxHighlighter>
+                          );
+                        },
+                      }}
+                    >
+                      {section.content}
+                    </ReactMarkdown>
+                  </div>
                 );
               }
 
               if (section.type === "code") {
                 return (
-                  <div
-                    key={index}
-                    className="bg-dark-900 rounded-xl p-4 overflow-x-auto"
-                  >
-                    <pre className="text-sm font-mono text-green-400">
-                      <code>{section.code}</code>
-                    </pre>
+                  <div key={index} className="rounded-xl overflow-hidden !my-3">
+                    <SyntaxHighlighter
+                      style={oneDark}
+                      language={section.language || "python"}
+                      PreTag="div"
+                      className="rounded-xl"
+                    >
+                      {section.code}
+                    </SyntaxHighlighter>
                   </div>
                 );
               }
@@ -302,8 +336,10 @@ export default function LessonPage() {
                     key={index}
                     className={`${v.bg} ${v.border} border rounded-xl p-4 flex gap-3`}
                   >
-                    <span className="text-xl">{v.icon}</span>
-                    <p className="text-dark-700">{section.content}</p>
+                    <span className="text-xl flex-shrink-0">{v.icon}</span>
+                    <div className="text-dark-700 prose prose-sm max-w-none prose-p:mb-2 prose-p:last:mb-0">
+                      <ReactMarkdown>{section.content}</ReactMarkdown>
+                    </div>
                   </div>
                 );
               }
@@ -317,12 +353,12 @@ export default function LessonPage() {
                 return (
                   <div
                     key={index}
-                    className={`border-2 rounded-xl p-6 ${isCompleted
+                    className={`border-2 rounded-xl p-3 sm:p-6 ${isCompleted
                       ? "border-green-300 bg-green-50/30"
                       : "border-primary-200 bg-primary-50/30"
                       }`}
                   >
-                    <div className="flex items-center gap-2 mb-4">
+                    <div className="flex items-center gap-2 mb-3 sm:mb-4">
                       <Badge
                         variant={isCompleted ? "success" : "primary"}
                       >
@@ -421,19 +457,19 @@ export default function LessonPage() {
           </div>
 
           {/* Navigation */}
-          <div className="flex items-center justify-between mt-12 pt-6 border-t border-dark-200">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-8 sm:mt-12 pt-4 sm:pt-6 border-t border-dark-200">
             {lesson.prevLesson ? (
-              <Link href={`/lessons/${lesson.prevLesson.id}`}>
-                <Button variant="ghost">
-                  &larr; {lesson.prevLesson.title}
+              <Link href={`/lessons/${lesson.prevLesson.id}`} className="min-w-0">
+                <Button variant="ghost" className="w-full sm:w-auto text-sm">
+                  <span className="truncate">&larr; {lesson.prevLesson.title}</span>
                 </Button>
               </Link>
             ) : (
-              <div />
+              <div className="hidden sm:block" />
             )}
 
             {isLessonComplete || exerciseCount === 0 ? (
-              <Button onClick={handleLessonComplete} disabled={completing}>
+              <Button onClick={handleLessonComplete} disabled={completing} className="text-sm sm:text-base">
                 {completing
                   ? "Completing..."
                   : lesson.nextLesson
@@ -441,16 +477,14 @@ export default function LessonPage() {
                     : "Complete Lesson"}
               </Button>
             ) : (
-              <div className="flex items-center gap-3">
-                <Button disabled>
-                  Complete exercises to continue ({completedExercises.length}/{exerciseCount})
-                </Button>
-              </div>
+              <Button disabled className="text-xs sm:text-sm">
+                Complete exercises ({completedExercises.length}/{exerciseCount})
+              </Button>
             )}
           </div>
 
           {/* Mobile: Ask Py Button */}
-          <div className="lg:hidden mt-8 p-4 bg-primary-50 rounded-xl border border-primary-200">
+          <div className="lg:hidden mt-6 sm:mt-8 p-3 sm:p-4 bg-primary-50 rounded-xl border border-primary-200">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white font-semibold">
                 Py

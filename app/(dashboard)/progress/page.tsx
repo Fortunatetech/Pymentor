@@ -148,41 +148,41 @@ export default function ProgressPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-dark-900 mb-8">Your Progress</h1>
+      <h1 className="text-xl sm:text-2xl font-bold text-dark-900 mb-6 sm:mb-8">Your Progress</h1>
 
       {/* Stats Overview */}
-      <div className="grid md:grid-cols-4 gap-4 mb-8">
-        <Streak days={streakDays} size="lg" />
-        <XPDisplay xp={totalXp} size="lg" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 mb-6 sm:mb-8">
+        <Streak days={streakDays} size="sm" className="sm:!px-6 sm:!py-4" />
+        <XPDisplay xp={totalXp} size="sm" className="sm:!px-6 sm:!py-4" />
         <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <span className="text-3xl">📚</span>
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <span className="text-2xl sm:text-3xl">📚</span>
             <div>
-              <div className="text-2xl font-bold text-dark-900">
+              <div className="text-lg sm:text-2xl font-bold text-dark-900">
                 {lessonsCompleted}/{totalLessons}
               </div>
-              <div className="text-sm text-dark-500">Lessons</div>
+              <div className="text-xs sm:text-sm text-dark-500">Lessons</div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <span className="text-3xl">⏱️</span>
+          <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+            <span className="text-2xl sm:text-3xl">⏱️</span>
             <div>
-              <div className="text-2xl font-bold text-dark-900">
+              <div className="text-lg sm:text-2xl font-bold text-dark-900">
                 {timeSpentHours}h
               </div>
-              <div className="text-sm text-dark-500">Time Spent</div>
+              <div className="text-xs sm:text-sm text-dark-500">Time Spent</div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
         {/* Concept Mastery */}
         <Card>
-          <CardContent className="p-6">
-            <h2 className="font-semibold text-dark-900 mb-4">Concept Mastery</h2>
+          <CardContent className="p-4 sm:p-6">
+            <h2 className="font-semibold text-dark-900 mb-3 sm:mb-4 text-sm sm:text-base">Concept Mastery</h2>
             {concepts.length > 0 ? (
               <div className="space-y-4">
                 {concepts.map((concept) => (
@@ -205,9 +205,9 @@ export default function ProgressPage() {
 
         {/* Weekly Activity */}
         <Card>
-          <CardContent className="p-6">
-            <h2 className="font-semibold text-dark-900 mb-4">This Week</h2>
-            <div className="flex items-end justify-between h-40 gap-2">
+          <CardContent className="p-4 sm:p-6">
+            <h2 className="font-semibold text-dark-900 mb-3 sm:mb-4 text-sm sm:text-base">This Week</h2>
+            <div className="flex items-end justify-between h-32 sm:h-40 gap-1 sm:gap-2">
               {weeklyActivity.map((day) => (
                 <div key={day.day} className="flex-1 flex flex-col items-center">
                   <div
@@ -218,11 +218,11 @@ export default function ProgressPage() {
                       opacity: day.minutes > 0 ? 1 : 0.3,
                     }}
                   />
-                  <span className="text-xs text-dark-500 mt-2">{day.day}</span>
+                  <span className="text-[10px] sm:text-xs text-dark-500 mt-1 sm:mt-2">{day.day}</span>
                 </div>
               ))}
             </div>
-            <div className="text-center mt-4 text-sm text-dark-500">
+            <div className="text-center mt-3 sm:mt-4 text-xs sm:text-sm text-dark-500">
               Total: {weeklyActivity.reduce((a, b) => a + b.minutes, 0)} minutes
             </div>
           </CardContent>
@@ -230,9 +230,9 @@ export default function ProgressPage() {
 
         {/* Achievements (static) */}
         <Card className="md:col-span-2">
-          <CardContent className="p-6">
-            <h2 className="font-semibold text-dark-900 mb-4">Achievements</h2>
-            <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
+          <CardContent className="p-4 sm:p-6">
+            <h2 className="font-semibold text-dark-900 mb-3 sm:mb-4 text-sm sm:text-base">Achievements</h2>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-4">
               {[
                 { icon: "🎯", name: "First Code", unlocked: lessonsCompleted >= 1 },
                 { icon: "🔥", name: "3 Day Streak", unlocked: streakDays >= 3 },
@@ -249,12 +249,12 @@ export default function ProgressPage() {
               ].map((achievement) => (
                 <div
                   key={achievement.name}
-                  className={`flex flex-col items-center p-3 rounded-xl ${achievement.unlocked ? "bg-primary-50" : "bg-dark-100 opacity-50"
+                  className={`flex flex-col items-center p-2 sm:p-3 rounded-xl ${achievement.unlocked ? "bg-primary-50" : "bg-dark-100 opacity-50"
                     }`}
                   title={achievement.name}
                 >
-                  <span className="text-2xl mb-1">{achievement.icon}</span>
-                  <span className="text-xs text-dark-600 text-center">
+                  <span className="text-xl sm:text-2xl mb-0.5 sm:mb-1">{achievement.icon}</span>
+                  <span className="text-[10px] sm:text-xs text-dark-600 text-center leading-tight">
                     {achievement.name}
                   </span>
                 </div>

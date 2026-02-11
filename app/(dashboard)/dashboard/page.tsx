@@ -207,46 +207,48 @@ export default function DashboardPage() {
         </div>
       )}
       {/* Welcome Header */}
-      <div id="tour-welcome" className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-dark-900">
-            {isNewUser ? `Welcome, ${userName}!` : `Welcome back, ${userName}!`}
-          </h1>
-          <p className="text-dark-500">
-            {isNewUser
-              ? "We're excited to have you. Explore your dashboard to get started."
-              : "Keep up the great work. You're making amazing progress!"}
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <Streak days={streakDays} />
-          <XPDisplay xp={totalXp} />
+      <div id="tour-welcome" className="mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-dark-900">
+              {isNewUser ? `Welcome, ${userName}!` : `Welcome back, ${userName}!`}
+            </h1>
+            <p className="text-dark-500 text-sm sm:text-base">
+              {isNewUser
+                ? "We're excited to have you. Explore your dashboard to get started."
+                : "Keep up the great work. You're making amazing progress!"}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
+            <Streak days={streakDays} size="sm" />
+            <XPDisplay xp={totalXp} size="sm" />
+          </div>
         </div>
       </div>
 
       {/* Continue Learning Card */}
       {currentLesson ? (
         <Card className="mb-6">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-dark-900">Continue Learning</h2>
-              <span className="text-sm text-dark-500">{currentLesson.path}</span>
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h2 className="font-semibold text-dark-900 text-sm sm:text-base">Continue Learning</h2>
+              <span className="text-xs sm:text-sm text-dark-500 truncate ml-2">{currentLesson.path}</span>
             </div>
-            <div className="flex flex-col md:flex-row md:items-center gap-6">
-              <div className="flex-1">
-                <h3 className="text-lg font-medium text-dark-900 mb-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base sm:text-lg font-medium text-dark-900 mb-1 sm:mb-2 truncate">
                   {currentLesson.title}
                 </h3>
-                <p className="text-dark-500 text-sm mb-4">
+                <p className="text-dark-500 text-xs sm:text-sm mb-3 sm:mb-4">
                   {currentLesson.module}
                 </p>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <Progress value={currentLesson.progress} className="flex-1" />
-                  <span className="text-sm text-dark-500">{currentLesson.progress === 0 ? "Start" : `${currentLesson.progress}%`}</span>
+                  <span className="text-xs sm:text-sm text-dark-500 flex-shrink-0">{currentLesson.progress === 0 ? "Start" : `${currentLesson.progress}%`}</span>
                 </div>
               </div>
-              <Link href={`/lessons/${currentLesson.id}`}>
-                <Button className="w-full md:w-auto">Continue Lesson</Button>
+              <Link href={`/lessons/${currentLesson.id}`} className="flex-shrink-0">
+                <Button className="w-full sm:w-auto">Continue Lesson</Button>
               </Link>
             </div>
           </CardContent>
@@ -265,10 +267,10 @@ export default function DashboardPage() {
             ) : (
               <>
                 <h3 className="font-semibold text-dark-900 mb-2">All Caught Up!</h3>
-                <p className="text-dark-500">You've completed all available lessons. Check out the projects or challenges!</p>
-                <div className="mt-4 flex justify-center gap-4">
-                  <Link href="/projects"><Button variant="secondary">Browse Projects</Button></Link>
-                  <Link href="/challenges"><Button>Daily Challenge</Button></Link>
+                <p className="text-dark-500 text-sm sm:text-base">You&apos;ve completed all available lessons. Check out the projects or challenges!</p>
+                <div className="mt-4 flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
+                  <Link href="/projects"><Button variant="secondary" className="w-full sm:w-auto">Browse Projects</Button></Link>
+                  <Link href="/challenges"><Button className="w-full sm:w-auto">Daily Challenge</Button></Link>
                 </div>
               </>
             )}
@@ -277,7 +279,7 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Grid */}
-      <div id="tour-stats" className="grid md:grid-cols-3 gap-4 mb-6">
+      <div id="tour-stats" className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
         <StatCard
           icon="📚"
           label="Lessons Completed"
@@ -298,20 +300,20 @@ export default function DashboardPage() {
       {/* Daily Challenge */}
       {challenge && (
         <Card id="tour-challenge" className="mb-6 border-accent-300 bg-accent-50/30">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className="text-2xl">🎯</span>
-                <h2 className="font-semibold text-dark-900">
+                <span className="text-xl sm:text-2xl">🎯</span>
+                <h2 className="font-semibold text-dark-900 text-sm sm:text-base">
                   Daily Challenge
                 </h2>
               </div>
               <Badge variant="accent">+{challenge.xp_reward} XP</Badge>
             </div>
-            <h3 className="font-medium text-dark-900 mb-1">
+            <h3 className="font-medium text-dark-900 mb-1 text-sm sm:text-base">
               {challenge.title}
             </h3>
-            <p className="text-dark-500 text-sm mb-4">
+            <p className="text-dark-500 text-xs sm:text-sm mb-3 sm:mb-4">
               {challenge.description}
             </p>
             <div className="flex items-center justify-between">
@@ -337,29 +339,29 @@ export default function DashboardPage() {
       {/* Learning Path Progress */}
       {paths.length > 0 && (
         <Card id="tour-paths">
-          <CardContent className="p-6">
-            <h2 className="font-semibold text-dark-900 mb-4">Your Learning Paths</h2>
-            <div className="space-y-4">
+          <CardContent className="p-4 sm:p-6">
+            <h2 className="font-semibold text-dark-900 mb-3 sm:mb-4 text-sm sm:text-base">Your Learning Paths</h2>
+            <div className="space-y-3 sm:space-y-4">
               {paths.map((path) => (
                 <div
                   key={path.title}
-                  className={cn("flex items-center gap-4", path.locked && "opacity-50")}
+                  className={cn("flex items-center gap-3 sm:gap-4", path.locked && "opacity-50")}
                 >
                   <div className={cn(
-                    "w-10 h-10 rounded-lg flex items-center justify-center text-xl",
+                    "w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-lg sm:text-xl flex-shrink-0",
                     path.locked ? "bg-dark-100" : "bg-primary-100"
                   )}>
                     {path.icon || "📚"}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <span className={cn(
-                        "font-medium",
+                        "font-medium text-sm sm:text-base truncate",
                         path.locked ? "text-dark-700" : "text-dark-900"
                       )}>
                         {path.title}
                       </span>
-                      <span className="text-sm text-dark-500">
+                      <span className="text-xs sm:text-sm text-dark-500 flex-shrink-0 ml-2">
                         {path.locked ? "Locked" : `${path.progress}%`}
                       </span>
                     </div>
@@ -386,12 +388,12 @@ function StatCard({
 }) {
   return (
     <Card>
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-dark-500 text-sm">{label}</span>
-          <span className="text-2xl">{icon}</span>
+      <CardContent className="p-3 sm:p-5">
+        <div className="flex items-center justify-between mb-1 sm:mb-3">
+          <span className="text-dark-500 text-xs sm:text-sm">{label}</span>
+          <span className="text-lg sm:text-2xl">{icon}</span>
         </div>
-        <div className="text-2xl font-bold text-dark-900">{value}</div>
+        <div className="text-lg sm:text-2xl font-bold text-dark-900">{value}</div>
       </CardContent>
     </Card>
   );
@@ -405,20 +407,22 @@ function DashboardSkeleton() {
   return (
     <div>
       {/* Welcome header skeleton */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <SkeletonBlock className="h-8 w-64 mb-2" />
-          <SkeletonBlock className="h-5 w-80" />
-        </div>
-        <div className="flex items-center gap-4">
-          <SkeletonBlock className="h-10 w-20 rounded-full" />
-          <SkeletonBlock className="h-10 w-20 rounded-full" />
+      <div className="mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <SkeletonBlock className="h-6 sm:h-8 w-48 sm:w-64 mb-2" />
+            <SkeletonBlock className="h-4 sm:h-5 w-64 sm:w-80" />
+          </div>
+          <div className="flex items-center gap-3">
+            <SkeletonBlock className="h-10 w-20 rounded-xl" />
+            <SkeletonBlock className="h-10 w-20 rounded-xl" />
+          </div>
         </div>
       </div>
 
       {/* Continue learning skeleton */}
       <Card className="mb-6">
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <SkeletonBlock className="h-5 w-40 mb-4" />
           <SkeletonBlock className="h-6 w-64 mb-2" />
           <SkeletonBlock className="h-4 w-32 mb-4" />
@@ -427,12 +431,12 @@ function DashboardSkeleton() {
       </Card>
 
       {/* Stats grid skeleton */}
-      <div className="grid md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
         {[1, 2, 3].map((i) => (
           <Card key={i}>
-            <CardContent className="p-5">
-              <SkeletonBlock className="h-4 w-24 mb-3" />
-              <SkeletonBlock className="h-8 w-16" />
+            <CardContent className="p-3 sm:p-5">
+              <SkeletonBlock className="h-3 sm:h-4 w-16 sm:w-24 mb-2 sm:mb-3" />
+              <SkeletonBlock className="h-6 sm:h-8 w-12 sm:w-16" />
             </CardContent>
           </Card>
         ))}
@@ -440,12 +444,12 @@ function DashboardSkeleton() {
 
       {/* Learning paths skeleton */}
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <SkeletonBlock className="h-5 w-44 mb-4" />
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center gap-4">
-                <SkeletonBlock className="w-10 h-10" />
+              <div key={i} className="flex items-center gap-3 sm:gap-4">
+                <SkeletonBlock className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0" />
                 <div className="flex-1">
                   <SkeletonBlock className="h-4 w-48 mb-2" />
                   <SkeletonBlock className="h-3 w-full" />

@@ -164,9 +164,9 @@ export default function SettingsPage() {
   if (userLoading) {
     return (
       <div className="max-w-2xl">
-        <h1 className="text-2xl font-bold text-dark-900 mb-8">Settings</h1>
-        <Card className="mb-6">
-          <CardContent className="p-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-dark-900 mb-6 sm:mb-8">Settings</h1>
+        <Card className="mb-4 sm:mb-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="text-dark-500">Loading your settings...</div>
           </CardContent>
         </Card>
@@ -176,12 +176,12 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold text-dark-900 mb-8">Settings</h1>
+      <h1 className="text-xl sm:text-2xl font-bold text-dark-900 mb-6 sm:mb-8">Settings</h1>
 
       {/* Profile Settings */}
-      <Card className="mb-6">
-        <CardContent className="p-6">
-          <h2 className="font-semibold text-dark-900 mb-4">Profile</h2>
+      <Card className="mb-4 sm:mb-6">
+        <CardContent className="p-4 sm:p-6">
+          <h2 className="font-semibold text-dark-900 mb-3 sm:mb-4 text-sm sm:text-base">Profile</h2>
 
           <div className="space-y-4">
             <Input
@@ -239,9 +239,9 @@ export default function SettingsPage() {
       </Card>
 
       {/* Password */}
-      <Card className="mb-6">
-        <CardContent className="p-6">
-          <h2 className="font-semibold text-dark-900 mb-4">Change Password</h2>
+      <Card className="mb-4 sm:mb-6">
+        <CardContent className="p-4 sm:p-6">
+          <h2 className="font-semibold text-dark-900 mb-3 sm:mb-4 text-sm sm:text-base">Change Password</h2>
 
           <form onSubmit={handleChangePassword} className="space-y-4">
             <Input
@@ -279,9 +279,9 @@ export default function SettingsPage() {
 
       {/* Streak Freeze (Pro only) */}
       {isPro && (
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <h2 className="font-semibold text-dark-900 mb-4">Streak Freeze</h2>
+        <Card className="mb-4 sm:mb-6">
+          <CardContent className="p-4 sm:p-6">
+            <h2 className="font-semibold text-dark-900 mb-3 sm:mb-4 text-sm sm:text-base">Streak Freeze</h2>
             <div className="p-4 bg-primary-50 rounded-xl">
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-2xl">🧊</span>
@@ -308,14 +308,14 @@ export default function SettingsPage() {
       )}
 
       {/* Subscription */}
-      <Card className="mb-6">
-        <CardContent className="p-6">
-          <h2 className="font-semibold text-dark-900 mb-4">Subscription</h2>
+      <Card className="mb-4 sm:mb-6">
+        <CardContent className="p-4 sm:p-6">
+          <h2 className="font-semibold text-dark-900 mb-3 sm:mb-4 text-sm sm:text-base">Subscription</h2>
 
-          <div className="flex items-center justify-between p-4 bg-dark-50 rounded-xl mb-4">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-dark-50 rounded-xl mb-4">
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-dark-900">
+                <span className="font-medium text-dark-900 text-sm sm:text-base">
                   {isPro ? "Pro Plan" : "Free Plan"}
                 </span>
                 <Badge variant={isPro ? "primary" : "default"}>
@@ -323,7 +323,7 @@ export default function SettingsPage() {
                 </Badge>
               </div>
               {subscription?.current_period_end && (
-                <p className="text-sm text-dark-500 mt-1">
+                <p className="text-xs sm:text-sm text-dark-500 mt-1">
                   {subscription.cancel_at_period_end
                     ? "Cancels"
                     : "Renews"} on{" "}
@@ -337,12 +337,13 @@ export default function SettingsPage() {
                 variant="secondary"
                 size="sm"
                 onClick={handleCancelSubscription}
+                className="w-full sm:w-auto flex-shrink-0"
               >
                 Cancel
               </Button>
             ) : (
-              <Link href="/pricing">
-                <Button size="sm">Upgrade</Button>
+              <Link href="/pricing" className="flex-shrink-0">
+                <Button size="sm" className="w-full sm:w-auto">Upgrade</Button>
               </Link>
             )}
           </div>
@@ -365,13 +366,13 @@ export default function SettingsPage() {
 
       {/* Danger Zone */}
       <Card>
-        <CardContent className="p-6">
-          <h2 className="font-semibold text-red-600 mb-4">Danger Zone</h2>
+        <CardContent className="p-4 sm:p-6">
+          <h2 className="font-semibold text-red-600 mb-3 sm:mb-4 text-sm sm:text-base">Danger Zone</h2>
 
-          <div className="flex items-center justify-between p-4 border border-red-200 rounded-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 border border-red-200 rounded-xl">
             <div>
-              <p className="font-medium text-dark-900">Delete Account</p>
-              <p className="text-sm text-dark-500">
+              <p className="font-medium text-dark-900 text-sm sm:text-base">Delete Account</p>
+              <p className="text-xs sm:text-sm text-dark-500">
                 Permanently delete your account and all data
               </p>
             </div>
@@ -379,6 +380,7 @@ export default function SettingsPage() {
               variant="danger"
               size="sm"
               onClick={() => setShowDeleteModal(true)}
+              className="w-full sm:w-auto flex-shrink-0"
             >
               Delete
             </Button>
