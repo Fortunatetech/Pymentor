@@ -76,13 +76,18 @@ export default function OnboardingPage() {
             daily_goal_minutes: parseInt(selections.daily_goal_minutes || "15", 10),
           };
 
+      // Update the profile (created by handle_new_user trigger on signup)
       const { error: updateError } = await supabase
         .from("profiles")
-        .update(profileData)
+        .update({
+          ...profileData,
+          name: user.user_metadata?.name || user.email?.split("@")[0] || "Learner",
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", user.id);
 
       if (updateError) {
-        console.error("Failed to update profile:", updateError);
+        console.error("Failed to save profile:", updateError);
         setError("Failed to save your preferences. Please try again.");
         setSaving(false);
         return;

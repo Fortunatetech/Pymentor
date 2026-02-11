@@ -10,26 +10,30 @@ export function useSubscription(userId?: string | null) {
   const supabase = useMemo(() => createClient(), []);
 
   const fetchSubscription = useCallback(async () => {
-    // Use provided userId to avoid redundant auth.getUser() call
-    let resolvedUserId = userId;
-    if (!resolvedUserId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      resolvedUserId = user?.id;
-    }
-
-    if (resolvedUserId) {
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("user_id", resolvedUserId)
-        .maybeSingle();
-
-      if (data) {
-        setSubscription(data as Subscription);
+    try {
+      // Use provided userId to avoid redundant auth.getUser() call
+      let resolvedUserId = userId;
+      if (!resolvedUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        resolvedUserId = user?.id;
       }
-    }
 
-    setLoading(false);
+      if (resolvedUserId) {
+        const { data } = await supabase
+          .from("subscriptions")
+          .select("*")
+          .eq("user_id", resolvedUserId)
+          .maybeSingle();
+
+        if (data) {
+          setSubscription(data as Subscription);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching subscription:", err);
+    } finally {
+      setLoading(false);
+    }
   }, [supabase, userId]);
 
   useEffect(() => {

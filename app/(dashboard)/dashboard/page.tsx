@@ -13,8 +13,6 @@ import { useSearchParams } from "next/navigation";
 import { DashboardTour } from "@/components/dashboard-tour";
 import { createClient } from "@/lib/supabase/client";
 
-import { PageLoading } from "@/components/ui/loading-spinner";
-
 interface DailyChallenge {
   id: string;
   title: string;
@@ -49,20 +47,25 @@ export default function DashboardPage() {
 
   const [paths, setPaths] = useState<PathWithProgress[]>([]);
   const [challenge, setChallenge] = useState<DailyChallenge | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentLesson, setCurrentLesson] = useState<{ id: string; title: string; path: string; module: string; progress: number } | null>(null);
 
   useEffect(() => {
-    let mounted = true;
+    // Wait for auth to finish loading
+    if (userLoading) return;
+
+    // No user = nothing to fetch
+    if (!authUser) {
+      setDataLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const userId = authUser.id;
 
     async function fetchData() {
-      if (!authUser) return;
-
       try {
-        setLoading(true);
-
-        // Fetch paths, user lessons, and daily challenge in parallel
         const today = new Date().toISOString().split("T")[0];
         const [pathsResult, userLessonsResult, challengeResult] = await Promise.all([
           supabase
@@ -80,7 +83,7 @@ export default function DashboardPage() {
           supabase
             .from("user_lessons")
             .select("lesson_id, status")
-            .eq("user_id", authUser.id),
+            .eq("user_id", userId),
           supabase
             .from("daily_challenges")
             .select("*")
@@ -89,6 +92,8 @@ export default function DashboardPage() {
             .limit(1)
             .maybeSingle(),
         ]);
+
+        if (cancelled) return;
 
         const { data: pathsData, error: pathsError } = pathsResult;
         if (pathsError) throw pathsError;
@@ -102,12 +107,11 @@ export default function DashboardPage() {
           progressMap.set(ul.lesson_id, ul.status);
         });
 
-        // 3. Process Paths & Find Current Lesson
+        // Process Paths & Find Current Lesson
         let foundCurrent = false;
-        let nextLessonToLearn: any = null;
+        let nextLessonToLearn: typeof currentLesson = null;
 
         const processedPaths = (pathsData || []).map((path: any) => {
-          // Sort modules and lessons
           const modules = (path.modules || [])
             .sort((a: any, b: any) => a.order_index - b.order_index)
             .map((mod: any) => {
@@ -116,44 +120,28 @@ export default function DashboardPage() {
                 .map((lesson: any) => {
                   const status = progressMap.get(lesson.id) || "not_started";
 
-                  // Check for current lesson candidate
                   if (!foundCurrent) {
-                    if (status === "in_progress") {
+                    if (status === "in_progress" || status === "not_started") {
                       nextLessonToLearn = {
                         id: lesson.id,
                         title: lesson.title,
                         path: path.title,
                         module: mod.title,
-                        progress: 50
-                      };
-                      foundCurrent = true;
-                    } else if (status === "not_started") {
-                      nextLessonToLearn = {
-                        id: lesson.id,
-                        title: lesson.title,
-                        path: path.title,
-                        module: mod.title,
-                        progress: 0
+                        progress: status === "in_progress" ? 50 : 0,
                       };
                       foundCurrent = true;
                     }
                   }
 
-                  return {
-                    ...lesson,
-                    userProgress: { status }
-                  };
+                  return { ...lesson, userProgress: { status } };
                 });
               return { ...mod, lessons };
             });
 
-          // Calculate Path Progress
           const allLessons = modules.flatMap((m: any) => m.lessons);
           const completedCount = allLessons.filter((l: any) => l.userProgress.status === "completed").length;
           const totalCount = allLessons.length;
           const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
-          // Determine locked status
           const isLocked = !path.is_free && progress === 0 && path.order_index > 1;
 
           return {
@@ -163,36 +151,29 @@ export default function DashboardPage() {
             order_index: path.order_index,
             progress,
             locked: isLocked,
-            modules
+            modules,
           };
         });
 
-        if (mounted) {
+        if (!cancelled) {
           setPaths(processedPaths);
           setCurrentLesson(nextLessonToLearn);
+          if (challengeResult.data) setChallenge(challengeResult.data);
         }
-
-        // Set daily challenge from parallel fetch
-        if (mounted && challengeResult.data) {
-          setChallenge(challengeResult.data);
-        }
-
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
-        if (mounted) setError("Failed to load dashboard data. Please refresh the page.");
+        if (!cancelled) setError("Failed to load dashboard data. Please refresh the page.");
       } finally {
-        if (mounted) setLoading(false);
+        if (!cancelled) setDataLoading(false);
       }
     }
 
-    if (!userLoading && authUser) {
-      fetchData();
-    }
+    fetchData();
 
-    return () => { mounted = false; };
-  }, [authUser, userLoading, supabase]);
+    return () => { cancelled = true; };
+  }, [authUser?.id, userLoading, supabase]);
 
-  // Recalculate global stats from our fresh data (must be before early return)
+  // Compute stats from paths data
   const totalLessonsCount = useMemo(() =>
     paths.reduce((sum, p) => sum + (p.modules?.reduce((mSum, m) => mSum + (m.lessons?.length || 0), 0) || 0), 0),
     [paths]
@@ -204,15 +185,12 @@ export default function DashboardPage() {
     [paths]
   );
 
-  if (userLoading) {
-    return <PageLoading title="Loading your progress..." />;
-  }
-
-  if (loading && !paths.length) {
+  // Loading state: either auth is loading OR dashboard data is loading
+  if (userLoading || dataLoading) {
     return <DashboardSkeleton />;
   }
 
-  const userName = profile?.name || profile?.email?.split("@")[0] || "Learner";
+  const userName = profile?.name || authUser?.email?.split("@")[0] || "Learner";
   const streakDays = profile?.streak_days || 0;
   const totalXp = profile?.total_xp || 0;
 

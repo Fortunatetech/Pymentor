@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
@@ -12,7 +11,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -30,15 +28,23 @@ export default function LoginPage() {
       setLoading(false);
     } else {
       // Check if user has completed onboarding
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("learning_goal")
-        .single();
+      const { data: { user } } = await supabase.auth.getUser();
 
-      if (!profile?.learning_goal) {
-        router.push("/onboarding");
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("learning_goal")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (!profile?.learning_goal) {
+          // Use window.location.href to force full page reload and fresh auth state
+          window.location.href = "/onboarding";
+        } else {
+          window.location.href = "/dashboard";
+        }
       } else {
-        router.push("/dashboard");
+        window.location.href = "/dashboard";
       }
     }
   };

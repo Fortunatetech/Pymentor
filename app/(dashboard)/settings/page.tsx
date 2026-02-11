@@ -10,7 +10,7 @@ import { useUser, useSubscription } from "@/hooks";
 import Link from "next/link";
 
 export default function SettingsPage() {
-  const { profile, authUser } = useUser();
+  const { profile, authUser, loading: userLoading, refreshProfile } = useUser();
   const { subscription, isPro } = useSubscription();
   const supabase = useMemo(() => createClient(), []);
 
@@ -63,6 +63,9 @@ export default function SettingsPage() {
       setSaveError("Failed to save changes. Please try again.");
       return;
     }
+
+    // Refresh profile in the provider so sidebar and other components update
+    await refreshProfile();
 
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -157,6 +160,19 @@ export default function SettingsPage() {
       setDeleting(false);
     }
   };
+
+  if (userLoading) {
+    return (
+      <div className="max-w-2xl">
+        <h1 className="text-2xl font-bold text-dark-900 mb-8">Settings</h1>
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <div className="text-dark-500">Loading your settings...</div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl">

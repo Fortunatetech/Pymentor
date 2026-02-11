@@ -25,99 +25,118 @@ export default function ProgressPage() {
   const [totalLessons, setTotalLessons] = useState(0);
   const [pathCompleted, setPathCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!authUser || userLoading) return;
+    // Wait for auth to finish
+    if (userLoading) return;
 
-    let mounted = true;
+    // No user = nothing to fetch
+    if (!authUser) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const userId = authUser.id;
 
     async function fetchProgress() {
-      const now = new Date();
-      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const weekStart = new Date(now);
-      weekStart.setDate(now.getDate() - now.getDay());
-      weekStart.setHours(0, 0, 0, 0);
+      try {
+        const now = new Date();
+        const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay());
+        weekStart.setHours(0, 0, 0, 0);
 
-      // Run all queries in parallel
-      const [conceptResult, lessonCountResult, pathsResult, completedResult, weekResult] = await Promise.all([
-        supabase
-          .from("user_progress")
-          .select("concept, mastery_level")
-          .eq("user_id", authUser!.id)
-          .order("mastery_level", { ascending: false }),
-        supabase
-          .from("lessons")
-          .select("id", { count: "exact", head: true }),
-        supabase
-          .from("learning_paths")
-          .select("id, modules(id, lessons(id))"),
-        supabase
-          .from("user_lessons")
-          .select("lesson_id")
-          .eq("user_id", authUser!.id)
-          .eq("status", "completed"),
-        supabase
-          .from("user_lessons")
-          .select("time_spent, started_at, completed_at")
-          .eq("user_id", authUser!.id)
-          .gte("started_at", weekStart.toISOString()),
-      ]);
+        const [conceptResult, lessonCountResult, pathsResult, completedResult, weekResult] = await Promise.all([
+          supabase
+            .from("user_progress")
+            .select("concept, mastery_level")
+            .eq("user_id", userId)
+            .order("mastery_level", { ascending: false }),
+          supabase
+            .from("lessons")
+            .select("id", { count: "exact", head: true }),
+          supabase
+            .from("learning_paths")
+            .select("id, modules(id, lessons(id))"),
+          supabase
+            .from("user_lessons")
+            .select("lesson_id")
+            .eq("user_id", userId)
+            .eq("status", "completed"),
+          supabase
+            .from("user_lessons")
+            .select("time_spent, started_at, completed_at")
+            .eq("user_id", userId)
+            .gte("started_at", weekStart.toISOString()),
+        ]);
 
-      if (!mounted) return;
+        if (cancelled) return;
 
-      // Process concept mastery
-      if (conceptResult.data) {
-        setConcepts(conceptResult.data);
-      }
+        if (conceptResult.data) setConcepts(conceptResult.data);
+        setTotalLessons(lessonCountResult.count || 0);
 
-      // Process total lesson count
-      setTotalLessons(lessonCountResult.count || 0);
-
-      // Process path completion
-      if (pathsResult.data) {
-        const completedIds = new Set(completedResult.data?.map((l) => l.lesson_id) || []);
-
-        for (const path of pathsResult.data) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const pathLessons = (path.modules as any[])?.flatMap(
+        if (pathsResult.data) {
+          const completedIds = new Set(completedResult.data?.map((l) => l.lesson_id) || []);
+          for (const path of pathsResult.data) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (m: any) => (m.lessons as any[])?.map((l: any) => l.id) || []
-          ) || [];
-          if (pathLessons.length > 0 && pathLessons.every((id: string) => completedIds.has(id))) {
-            setPathCompleted(true);
-            break;
+            const pathLessons = (path.modules as any[])?.flatMap(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (m: any) => (m.lessons as any[])?.map((l: any) => l.id) || []
+            ) || [];
+            if (pathLessons.length > 0 && pathLessons.every((id: string) => completedIds.has(id))) {
+              setPathCompleted(true);
+              break;
+            }
           }
         }
-      }
 
-      // Process weekly activity
-      const dailyMinutes: Record<string, number> = {};
-      for (const d of dayNames) dailyMinutes[d] = 0;
+        const dailyMinutes: Record<string, number> = {};
+        for (const d of dayNames) dailyMinutes[d] = 0;
 
-      if (weekResult.data) {
-        for (const lesson of weekResult.data) {
-          const date = new Date(lesson.started_at || lesson.completed_at);
-          const dayName = dayNames[date.getDay()];
-          dailyMinutes[dayName] += Math.round((lesson.time_spent || 0) / 60);
+        if (weekResult.data) {
+          for (const lesson of weekResult.data) {
+            const date = new Date(lesson.started_at || lesson.completed_at);
+            const dayName = dayNames[date.getDay()];
+            dailyMinutes[dayName] += Math.round((lesson.time_spent || 0) / 60);
+          }
         }
+
+        setWeeklyActivity(
+          dayNames.map((day) => ({ day, minutes: dailyMinutes[day] }))
+        );
+      } catch (err) {
+        console.error("Error fetching progress:", err);
+        if (!cancelled) setError("Failed to load progress data. Please refresh the page.");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      setWeeklyActivity(
-        dayNames.map((day) => ({ day, minutes: dailyMinutes[day] }))
-      );
-
-      setLoading(false);
     }
 
     fetchProgress();
 
-    return () => { mounted = false; };
-  }, [authUser, userLoading, supabase]);
+    return () => { cancelled = true; };
+  }, [authUser?.id, userLoading, supabase]);
 
   if (userLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-dark-500">Loading...</div>
+        <div className="text-dark-500">Loading your progress...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
+        <p className="text-red-600">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="text-primary-600 hover:text-primary-700 font-medium"
+        >
+          Refresh page
+        </button>
       </div>
     );
   }

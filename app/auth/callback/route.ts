@@ -24,7 +24,7 @@ export async function GET(request: Request) {
           .from("profiles")
           .select("learning_goal")
           .eq("id", user.id)
-          .single();
+          .maybeSingle();
 
         // If learning_goal is null, user hasn't completed onboarding
         if (!profile?.learning_goal) {

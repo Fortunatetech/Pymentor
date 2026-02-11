@@ -23,12 +23,12 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { profile, authUser, signOut } = useUser();
+  const { profile, authUser, signOut, loading: userLoading } = useUser();
   const { isPro } = useSubscription(authUser?.id);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const userName = profile?.name || profile?.email?.split("@")[0] || "User";
-  const userInitial = userName.charAt(0).toUpperCase();
+  const userName = profile?.name || authUser?.email?.split("@")[0] || (userLoading ? "..." : "User");
+  const userInitial = userName === "..." ? "..." : userName.charAt(0).toUpperCase();
 
   return (
     <div className="flex min-h-screen">

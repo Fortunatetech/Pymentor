@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
@@ -13,8 +12,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [checkEmail, setCheckEmail] = useState(false); // New state for success screen
-  const router = useRouter();
+  const [checkEmail, setCheckEmail] = useState(false);
   const supabase = createClient();
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -40,7 +38,7 @@ export default function SignupPage() {
         setCheckEmail(true);
       } else {
         // If no confirmation needed (e.g. anonymous enabled or auto-confirm), go to onboarding
-        router.push("/onboarding");
+        window.location.href = "/onboarding";
       }
     }
   };
