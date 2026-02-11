@@ -141,8 +141,8 @@ export default function ChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: input,
-          session_id: sessionId,
-          lesson_id: lessonId || undefined,
+          session_id: sessionId ?? undefined,
+          lesson_id: lessonId ?? undefined,
         }),
         signal: controller.signal,
       });
@@ -218,7 +218,7 @@ export default function ChatPage() {
       console.error("Failed to send message:", err);
       const errorMessage = err.name === "AbortError"
         ? "Request timed out. Please try again."
-        : "Network error. Please check your connection and try again.";
+        : err.message || "Network error. Please check your connection and try again.";
       setError(errorMessage);
       setMessages((prev) =>
         prev.map((m) =>

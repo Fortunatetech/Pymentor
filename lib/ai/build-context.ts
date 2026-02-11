@@ -23,7 +23,7 @@ export async function buildAIContext(
       .from("profiles")
       .select("name, skill_level, learning_goal, streak_days")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
     if (profile) {
       context.user.name = profile.name || "Learner";
@@ -70,7 +70,7 @@ export async function buildAIContext(
         .from("lessons")
         .select("title, concepts_taught")
         .eq("id", lessonId)
-        .single();
+        .maybeSingle();
       if (specificLesson) {
         currentLesson = { lessons: specificLesson };
       }
@@ -82,7 +82,7 @@ export async function buildAIContext(
         .eq("status", "in_progress")
         .order("updated_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       currentLesson = inProgressLesson;
     }
 
