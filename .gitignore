@@ -32,6 +32,9 @@ yarn-error.log*
 Thumbs.db
 nul
 
+# Files
+WhatNext.txt
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts

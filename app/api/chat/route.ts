@@ -6,7 +6,10 @@ import {
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildAIContext } from "@/lib/ai/build-context";
-import type { AIContext } from "@/types";
+import { analyzeFrustration } from "@/lib/ai/frustration-detector";
+import { buildAdaptiveSignals } from "@/lib/ai/adaptive-signals";
+import { buildSystemPrompt } from "@/lib/ai/system-prompt-builder";
+import { generateSessionSummary, shouldSummarize } from "@/lib/ai/session-summarizer";
 import { chatMessageSchema, validateRequest } from "@/lib/validations";
 
 export const maxDuration = 60;
@@ -16,74 +19,6 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-const SYSTEM_PROMPT = `You are Py, a friendly and patient AI Python tutor. Your goal is to help beginners learn Python programming through encouragement, simple explanations, and guided practice.
-
-YOUR PERSONALITY:
-- Warm, encouraging, and never condescending
-- Slightly nerdy with occasional programming puns
-- Celebrates every win, no matter how small
-- Patient - willing to explain things multiple ways
-- Humble - admits when something is genuinely tricky
-
-YOUR TEACHING APPROACH:
-1. Socratic Method: Ask guiding questions before giving answers
-2. Simple Analogies: Explain concepts using everyday examples
-3. Progressive Hints: Give hints before full solutions
-4. Hands-On: Always encourage trying code
-5. Memory: Reference what the user has already learned
-
-RESPONSE FORMAT:
-- Keep responses concise (under 200 words unless explaining complex code)
-- Use code blocks with \`\`\`python for all code examples
-- Use emojis sparingly but warmly (1-2 per response max)
-- End with a question or action item when appropriate
-
-WHAT YOU NEVER DO:
-- Give complete solutions without teaching
-- Use jargon without explaining it
-- Make the user feel stupid
-- Say "as an AI" or break character
-- Write overly long responses
-
-ADAPTIVE BEHAVIOR:
-- If the student has 3+ wrong attempts on something, give simpler explanations with smaller steps
-- If they're breezing through, offer to skip ahead or provide extra challenges
-- If they seem frustrated, acknowledge the difficulty and try a different analogy
-- If they're returning after 3+ days, welcome them back and do a quick recap`;
-
-function buildContextPrompt(context: AIContext): string {
-  let prompt = `
-<user_context>
-Student: ${context.user.name}
-Level: ${context.user.skill_level}`;
-
-  if (context.user.learning_goal) {
-    prompt += `\nLearning Goal: ${context.user.learning_goal}`;
-  }
-  if (context.current_lesson) {
-    prompt += `\nCurrent Lesson: ${context.current_lesson.title}`;
-    if (context.current_lesson.concepts.length > 0) {
-      prompt += `\nLesson Concepts: ${context.current_lesson.concepts.join(", ")}`;
-    }
-  }
-  if (context.mastered_concepts.length > 0) {
-    prompt += `\nMastered Concepts: ${context.mastered_concepts.join(", ")}`;
-  }
-  if (context.struggling_concepts.length > 0) {
-    prompt += `\nStruggling With: ${context.struggling_concepts.join(", ")}`;
-  }
-  if (context.user.streak_count > 0) {
-    prompt += `\nStreak: ${context.user.streak_count} days`;
-  }
-
-  prompt += `
-</user_context>
-
-Use this context to personalize your responses. Reference concepts they've mastered when explaining new ones. Be extra patient with concepts they're struggling with.`;
-
-  return prompt;
-}
 
 // Convert chat history to Gemini format
 function toGeminiHistory(
@@ -203,15 +138,30 @@ export async function POST(req: NextRequest) {
       .order("created_at", { ascending: true })
       .limit(10);
 
-    // Build real context
-    const context = await buildAIContext(supabase, user.id, lesson_id || undefined);
-    const fullSystemPrompt = SYSTEM_PROMPT + buildContextPrompt(context);
+    const history = dbHistory || [];
 
-    // Save user message to DB
+    // Analyze frustration from current message + history
+    const frustration = analyzeFrustration(message, history);
+
+    // Build AI context (enhanced with session summaries, XP, last_chat_at)
+    const context = await buildAIContext(supabase, user.id, lesson_id || undefined);
+
+    // Build adaptive signals (frustration, pace, returning user detection)
+    const signals = await buildAdaptiveSignals(supabase, user.id, history, frustration);
+
+    // Build dynamic system prompt
+    const fullSystemPrompt = buildSystemPrompt(context, signals);
+
+    // Save user message with frustration metadata
     await supabase.from("chat_messages").insert({
       session_id: sessionId,
       role: "user",
       content: message,
+      metadata: {
+        frustration_score: frustration.score,
+        frustration_level: frustration.level,
+        signals: frustration.signals,
+      },
     });
 
     // ============================================
@@ -247,13 +197,14 @@ export async function POST(req: NextRequest) {
 
     // Build chat with history
     const chat = model.startChat({
-      history: dbHistory ? toGeminiHistory(dbHistory) : [],
+      history: toGeminiHistory(history),
     });
 
     // Stream the response
     const result = await chat.sendMessageStream(message);
 
     let fullResponse = "";
+    const currentMessageCount = (history.length || 0) + 2;
 
     const readableStream = new ReadableStream({
       async start(controller) {
@@ -286,10 +237,36 @@ export async function POST(req: NextRequest) {
           await supabase
             .from("chat_sessions")
             .update({
-              message_count: (dbHistory?.length || 0) + 2,
+              message_count: currentMessageCount,
               updated_at: new Date().toISOString(),
             })
             .eq("id", sessionId);
+
+          // Fire-and-forget: update last_chat_at on profile
+          Promise.resolve(
+            supabase
+              .from("profiles")
+              .update({ last_chat_at: new Date().toISOString() })
+              .eq("id", user.id)
+          ).catch((err: unknown) => console.error("Failed to update last_chat_at:", err));
+
+          // Fire-and-forget: generate session summary if threshold met
+          if (shouldSummarize(currentMessageCount)) {
+            // Re-fetch all messages for this session for the summary
+            Promise.resolve(
+              supabase
+                .from("chat_messages")
+                .select("role, content")
+                .eq("session_id", sessionId)
+                .order("created_at", { ascending: true })
+            )
+              .then(({ data: allMessages }) => {
+                if (allMessages && allMessages.length > 0) {
+                  generateSessionSummary(supabase, sessionId!, allMessages);
+                }
+              })
+              .catch((err: unknown) => console.error("Failed to fetch messages for summary:", err));
+          }
 
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`)

@@ -74,12 +74,31 @@ export interface UserLesson {
   completed_at: string | null;
 }
 
+export interface SessionSummary {
+  summary: string;
+  concepts_discussed: string[];
+  user_state: "progressing" | "stuck" | "exploring" | "reviewing";
+}
+
+export interface SessionContext {
+  summary?: SessionSummary;
+  [key: string]: unknown;
+}
+
+export interface MessageMetadata {
+  frustration_score?: number;
+  frustration_level?: "none" | "mild" | "high";
+  signals?: string[];
+  [key: string]: unknown;
+}
+
 export interface ChatSession {
   id: string;
   user_id: string;
   lesson_id: string | null;
   title: string | null;
   message_count: number;
+  context?: SessionContext;
   created_at: string;
   updated_at: string;
 }
@@ -89,6 +108,7 @@ export interface ChatMessage {
   session_id: string;
   role: "user" | "assistant";
   content: string;
+  metadata?: MessageMetadata;
   created_at: string;
 }
 
@@ -110,12 +130,28 @@ export interface UserProgress {
   practice_count: number;
 }
 
+export interface LearningProgression {
+  current_path: { title: string; difficulty: string } | null;
+  completed_lessons: string[];
+  current_lesson_title: string | null;
+  next_lessons: string[];
+  current_module: string | null;
+  modules_completed: number;
+  modules_total: number;
+  overall_percent: number;
+  concept_gaps: string[];
+  recently_learned_concepts: string[];
+}
+
 export interface AIContext {
   user: {
     name: string;
     skill_level: string;
     learning_goal: string | null;
     streak_count: number;
+    total_xp: number;
+    total_lessons_completed: number;
+    last_chat_at: string | null;
   };
   current_lesson?: {
     title: string;
@@ -124,4 +160,6 @@ export interface AIContext {
   mastered_concepts: string[];
   struggling_concepts: string[];
   recent_session_summary?: string;
+  recent_sessions: SessionSummary[];
+  learning_progression?: LearningProgression;
 }
