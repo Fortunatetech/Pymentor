@@ -9,7 +9,7 @@ export default function PricingPage() {
 
   const handleCheckout = async (plan: string) => {
     setLoading(plan);
-    
+
     try {
       const response = await fetch("/api/billing/checkout", {
         method: "POST",
@@ -64,73 +64,73 @@ export default function PricingPage() {
               $0<span className="text-lg font-normal text-dark-400">/mo</span>
             </div>
             <p className="text-dark-500 text-sm mb-6">Get started with Python basics</p>
-            
+
             <ul className="space-y-3 mb-6">
-              <Feature included>3 free lessons</Feature>
-              <Feature included>10 AI messages/day</Feature>
+              <Feature included>Module 1 lessons</Feature>
+              <Feature included>15 AI messages/day</Feature>
               <Feature included>Code playground</Feature>
               <Feature>Unlimited lessons</Feature>
+              <Feature>Daily challenges</Feature>
               <Feature>Streak tracking</Feature>
-              <Feature>All projects</Feature>
             </ul>
-            
+
             <Button variant="secondary" className="w-full" disabled>
               Current Plan
             </Button>
           </div>
 
-          {/* Pro Monthly */}
+          {/* Pro Annual - Highlighted, center position */}
           <div className="bg-white rounded-2xl p-6 border-2 border-primary-500 relative">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
-              MOST POPULAR
+              BEST VALUE
             </div>
+            <h3 className="font-semibold text-dark-900 mb-1">Pro Annual</h3>
+            <div className="text-3xl font-bold text-dark-900 mb-1">
+              $8<span className="text-lg font-normal text-dark-400">/mo</span>
+            </div>
+            <p className="text-sm text-primary-600 mb-4">$96/year — Save 33%</p>
+            <p className="text-dark-500 text-sm mb-6">Best value for committed learners</p>
+
+            <ul className="space-y-3 mb-6">
+              <Feature included>Everything in Pro</Feature>
+              <Feature included>4 months free vs monthly</Feature>
+              <Feature included>Early access to new features</Feature>
+              <Feature included>Exclusive content</Feature>
+            </ul>
+
+            <Button
+              className="w-full"
+              onClick={() => handleCheckout("pro_annual")}
+              disabled={loading !== null}
+            >
+              {loading === "pro_annual" ? "Loading..." : "Get Best Value"}
+            </Button>
+          </div>
+
+          {/* Pro Monthly */}
+          <div className="bg-white rounded-2xl p-6 border border-dark-200">
             <h3 className="font-semibold text-dark-900 mb-1">Pro Monthly</h3>
             <div className="text-3xl font-bold text-dark-900 mb-4">
-              $15<span className="text-lg font-normal text-dark-400">/mo</span>
+              $12<span className="text-lg font-normal text-dark-400">/mo</span>
             </div>
             <p className="text-dark-500 text-sm mb-6">Full access, cancel anytime</p>
-            
+
             <ul className="space-y-3 mb-6">
               <Feature included>Unlimited lessons</Feature>
-              <Feature included>Unlimited AI chat</Feature>
-              <Feature included>Code playground</Feature>
+              <Feature included>500 AI messages/day</Feature>
+              <Feature included>Daily challenges</Feature>
               <Feature included>Streak tracking</Feature>
               <Feature included>All projects</Feature>
               <Feature included>Priority support</Feature>
             </ul>
-            
-            <Button 
-              className="w-full" 
+
+            <Button
+              variant="secondary"
+              className="w-full border-primary-500 text-primary-600 hover:bg-primary-50"
               onClick={() => handleCheckout("pro_monthly")}
               disabled={loading !== null}
             >
-              {loading === "pro_monthly" ? "Loading..." : "Subscribe"}
-            </Button>
-          </div>
-
-          {/* Pro Annual */}
-          <div className="bg-white rounded-2xl p-6 border border-dark-200">
-            <h3 className="font-semibold text-dark-900 mb-1">Pro Annual</h3>
-            <div className="text-3xl font-bold text-dark-900 mb-1">
-              $12<span className="text-lg font-normal text-dark-400">/mo</span>
-            </div>
-            <p className="text-sm text-primary-600 mb-4">$144/year — Save 20%</p>
-            <p className="text-dark-500 text-sm mb-6">Best value for committed learners</p>
-            
-            <ul className="space-y-3 mb-6">
-              <Feature included>Everything in Pro</Feature>
-              <Feature included>2 months free</Feature>
-              <Feature included>Early access to new features</Feature>
-              <Feature included>Exclusive content</Feature>
-            </ul>
-            
-            <Button 
-              variant="secondary"
-              className="w-full border-primary-500 text-primary-600 hover:bg-primary-50" 
-              onClick={() => handleCheckout("pro_annual")}
-              disabled={loading !== null}
-            >
-              {loading === "pro_annual" ? "Loading..." : "Best Value"}
+              {loading === "pro_monthly" ? "Loading..." : "Subscribe Monthly"}
             </Button>
           </div>
         </div>
@@ -141,20 +141,20 @@ export default function PricingPage() {
             Frequently Asked Questions
           </h2>
           <div className="space-y-4">
-            <FAQ 
-              q="Can I cancel anytime?" 
+            <FAQ
+              q="Can I cancel anytime?"
               a="Yes! Cancel anytime from your dashboard. You'll keep access until the end of your billing period."
             />
-            <FAQ 
-              q="What payment methods do you accept?" 
+            <FAQ
+              q="What payment methods do you accept?"
               a="We accept all major credit cards through Stripe."
             />
-            <FAQ 
-              q="Is there a free trial?" 
-              a="The free plan lets you try 3 lessons and 10 AI messages per day. No credit card required!"
+            <FAQ
+              q="Is there a free trial?"
+              a="The free plan gives you full access to Module 1 and 15 AI messages per day. No credit card required!"
             />
-            <FAQ 
-              q="What happens to my progress if I cancel?" 
+            <FAQ
+              q="What happens to my progress if I cancel?"
               a="Your progress is saved forever! You can always come back and continue where you left off."
             />
           </div>

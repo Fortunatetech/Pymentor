@@ -49,7 +49,7 @@ export async function GET(
   // Get adjacent lessons for navigation
   const { data: adjacentLessons } = await supabase
     .from("lessons")
-    .select("id, title, order_index")
+    .select("id, title, order_index, module:modules(order_index)")
     .eq("module_id", lesson.module_id)
     .order("order_index");
 
@@ -57,10 +57,29 @@ export async function GET(
     adjacentLessons?.findIndex((l) => l.id === params.id) ?? -1;
   const prevLesson =
     currentIndex > 0 ? adjacentLessons?.[currentIndex - 1] : null;
-  const nextLesson =
+  let nextLesson =
     currentIndex < (adjacentLessons?.length ?? 0) - 1
       ? adjacentLessons?.[currentIndex + 1]
       : null;
+
+  // If no next lesson in current module, check next module's first lesson
+  if (!nextLesson) {
+    const currentModuleOrder = (lesson.module as any)?.order_index ?? 1;
+    const { data: nextModuleLessons } = await supabase
+      .from("lessons")
+      .select("id, title, order_index, module:modules(order_index)")
+      .eq("order_index", 1)
+      .order("order_index")
+      .limit(10);
+
+    // Find first lesson in next module
+    const nextModuleLesson = nextModuleLessons?.find(
+      (l: any) => (l.module as any)?.order_index === currentModuleOrder + 1
+    );
+    if (nextModuleLesson) {
+      nextLesson = nextModuleLesson;
+    }
+  }
 
   // Get user progress
   let userProgress = null;
@@ -79,6 +98,7 @@ export async function GET(
     prevLesson,
     nextLesson,
     userProgress,
+    moduleOrderIndex: (lesson.module as any)?.order_index ?? 1,
   });
 }
 
@@ -106,6 +126,41 @@ export async function POST(
       { error: "unauthorized", message: "You must be logged in" },
       { status: 401 }
     );
+  }
+
+  // Check if lesson is behind paywall (module order_index > 1)
+  const { data: lessonCheck } = await supabase
+    .from("lessons")
+    .select("module:modules(order_index)")
+    .eq("id", params.id)
+    .single();
+
+  const moduleOrderIndex = (lessonCheck?.module as any)?.order_index ?? 1;
+
+  if (moduleOrderIndex > 1) {
+    // Check subscription
+    const { data: subscription } = await supabase
+      .from("subscriptions")
+      .select("plan, status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const isPro =
+      subscription &&
+      (subscription.plan === "pro_monthly" ||
+        subscription.plan === "pro_annual" ||
+        subscription.plan === "lifetime") &&
+      (subscription.status === "active" || subscription.status === "trialing");
+
+    if (!isPro) {
+      return NextResponse.json(
+        {
+          error: "paywall",
+          message: "This lesson requires a Pro subscription. Upgrade to continue learning!",
+        },
+        { status: 403 }
+      );
+    }
   }
 
   const { status, score, timeSpent } = await req.json();

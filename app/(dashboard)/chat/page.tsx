@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useUser, useSubscription } from "@/hooks";
+import { UpgradePrompt } from "@/components/ui/upgrade-prompt";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -381,8 +382,12 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Error banner */}
-        {error && (
+        {/* Error banner / Upgrade prompt on limit hit */}
+        {error && !isPro && error.includes("limited to") ? (
+          <div className="border-t border-dark-200 p-3 sm:p-4">
+            <UpgradePrompt variant="message-limit" />
+          </div>
+        ) : error ? (
           <div className="bg-red-50 border-t border-red-200 px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm text-red-700 flex items-center justify-between gap-2">
             <span>{error}</span>
             {!isPro && (
@@ -391,7 +396,7 @@ export default function ChatPage() {
               </Link>
             )}
           </div>
-        )}
+        ) : null}
 
         {/* Input Area */}
         <div className="bg-white border-t border-dark-200 p-2 sm:p-4">

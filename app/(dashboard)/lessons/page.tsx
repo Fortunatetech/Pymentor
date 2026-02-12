@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { useSubscription } from "@/hooks";
 
 interface Lesson {
   id: string;
@@ -18,6 +19,7 @@ interface Lesson {
 interface Module {
   id: string;
   title: string;
+  order_index: number;
   lessons: Lesson[];
 }
 
@@ -34,6 +36,7 @@ interface LearningPath {
 }
 
 export default function LessonsPage() {
+  const { isPro } = useSubscription();
   const [paths, setPaths] = useState<LearningPath[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -183,7 +186,7 @@ export default function LessonsPage() {
 
                   <div className="space-y-1">
                     {module.lessons?.map((lesson) => (
-                      <LessonRow key={lesson.id} lesson={lesson} />
+                      <LessonRow key={lesson.id} lesson={lesson} isLocked={!isPro && module.order_index > 1} />
                     ))}
                   </div>
                 </CardContent>
@@ -197,7 +200,7 @@ export default function LessonsPage() {
 }
 
 
-function LessonRow({ lesson }: { lesson: Lesson }) {
+function LessonRow({ lesson, isLocked = false }: { lesson: Lesson; isLocked?: boolean }) {
   const status = lesson.userProgress?.status || "not_started";
 
   const statusConfig = {
@@ -211,20 +214,23 @@ function LessonRow({ lesson }: { lesson: Lesson }) {
   return (
     <Link
       href={`/lessons/${lesson.id}`}
-      className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl hover:bg-dark-50 transition-colors group"
+      className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl hover:bg-dark-50 transition-colors group ${isLocked ? "opacity-60" : ""}`}
     >
       <div
-        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${status === "completed"
-          ? "bg-green-500 text-white"
-          : status === "in_progress"
-            ? "bg-accent-500 text-white"
-            : "border-2 border-dark-300 text-dark-300"
-          }`}
+        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${
+          isLocked
+            ? "border-2 border-dark-200 text-dark-300"
+            : status === "completed"
+              ? "bg-green-500 text-white"
+              : status === "in_progress"
+                ? "bg-accent-500 text-white"
+                : "border-2 border-dark-300 text-dark-300"
+        }`}
       >
-        {config.icon}
+        {isLocked ? "🔒" : config.icon}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm sm:text-base text-dark-900 group-hover:text-primary-600 transition-colors truncate">
+        <div className={`font-medium text-sm sm:text-base transition-colors truncate ${isLocked ? "text-dark-500" : "text-dark-900 group-hover:text-primary-600"}`}>
           {lesson.title}
         </div>
         <div className="text-xs sm:text-sm text-dark-500">
@@ -232,11 +238,17 @@ function LessonRow({ lesson }: { lesson: Lesson }) {
           {lesson.is_free && <span className="ml-1 text-primary-600 text-xs">Free</span>}
         </div>
       </div>
-      {/* Short text on mobile, full text on larger screens */}
-      <Badge variant={config.badge} className="flex-shrink-0 text-xs sm:text-sm">
-        <span className="hidden sm:inline">{config.fullText}</span>
-        <span className="sm:hidden">{config.text}</span>
-      </Badge>
+      {isLocked ? (
+        <Badge variant="accent" className="flex-shrink-0 text-xs sm:text-sm">
+          <span className="hidden sm:inline">Pro</span>
+          <span className="sm:hidden">Pro</span>
+        </Badge>
+      ) : (
+        <Badge variant={config.badge} className="flex-shrink-0 text-xs sm:text-sm">
+          <span className="hidden sm:inline">{config.fullText}</span>
+          <span className="sm:hidden">{config.text}</span>
+        </Badge>
+      )}
     </Link>
   );
 }

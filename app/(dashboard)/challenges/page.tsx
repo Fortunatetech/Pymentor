@@ -6,7 +6,9 @@ import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { UpgradePrompt } from "@/components/ui/upgrade-prompt";
 import { CodePlayground } from "@/components/editor/code-playground";
+import { useSubscription } from "@/hooks";
 
 import { PageLoading } from "@/components/ui/loading-spinner";
 
@@ -43,6 +45,7 @@ interface ChallengeHistory {
 }
 
 export default function ChallengePage() {
+  const { isPro, loading: subLoading } = useSubscription();
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [loading, setLoading] = useState(true);
   const [completed, setCompleted] = useState(false);
@@ -276,8 +279,16 @@ export default function ChallengePage() {
     });
   };
 
-  if (loading) {
+  if (loading || subLoading) {
     return <PageLoading title="Loading challenge..." />;
+  }
+
+  if (!isPro) {
+    return (
+      <div className="max-w-2xl mx-auto mt-8">
+        <UpgradePrompt variant="challenge-locked" />
+      </div>
+    );
   }
 
   if (!challenge) {

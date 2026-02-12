@@ -6,8 +6,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { UpgradePrompt } from "@/components/ui/upgrade-prompt";
 import { CodePlayground } from "@/components/editor/code-playground";
 import { useLessonTimer } from "@/hooks/use-lesson-timer";
+import { useSubscription } from "@/hooks";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -27,9 +29,10 @@ interface LessonData {
       title: string;
     };
   };
-  prevLesson: { id: string; title: string } | null;
-  nextLesson: { id: string; title: string } | null;
+  prevLesson: { id: string; title: string; module?: { order_index: number } } | null;
+  nextLesson: { id: string; title: string; module?: { order_index: number } } | null;
   userProgress: { status: string; score: number | null } | null;
+  moduleOrderIndex: number;
 }
 
 interface CompletionResult {
@@ -42,6 +45,7 @@ export default function LessonPage() {
   const params = useParams();
   const router = useRouter();
   const lessonId = params.id as string;
+  const { isPro } = useSubscription();
 
   const [lesson, setLesson] = useState<LessonData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,6 +55,7 @@ export default function LessonPage() {
   const [completing, setCompleting] = useState(false);
   const [completionResult, setCompletionResult] =
     useState<CompletionResult | null>(null);
+  const [showModuleComplete, setShowModuleComplete] = useState(false);
 
   // Time tracking
   const { stopAndGetTime } = useLessonTimer(lessonId);
@@ -107,6 +112,11 @@ export default function LessonPage() {
     );
   }
 
+  const isLocked = !isPro && (lesson.moduleOrderIndex ?? 1) > 1;
+  const nextLessonLocked = !isPro && lesson.nextLesson?.module?.order_index
+    ? lesson.nextLesson.module.order_index > 1
+    : false;
+
   const sections = lesson.content?.sections || [];
   const exerciseCount = sections.filter(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,6 +147,22 @@ export default function LessonPage() {
         }),
       });
       const result = await res.json();
+
+      // If next lesson requires Pro and user isn't Pro, show upgrade prompt
+      if (nextLessonLocked || (!lesson.nextLesson && !isPro)) {
+        if (result.xp_earned > 0) {
+          setCompletionResult(result);
+          // Don't auto-navigate; show module-complete upgrade prompt after delay
+          setTimeout(() => {
+            setCompletionResult(null);
+            setShowModuleComplete(true);
+          }, 3000);
+        } else {
+          setShowModuleComplete(true);
+        }
+        return;
+      }
+
       if (result.xp_earned > 0) {
         // First-time completion: show XP and streak
         setCompletionResult(result);
@@ -456,32 +482,52 @@ export default function LessonPage() {
             })}
           </div>
 
-          {/* Navigation */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-8 sm:mt-12 pt-4 sm:pt-6 border-t border-dark-200">
-            {lesson.prevLesson ? (
-              <Link href={`/lessons/${lesson.prevLesson.id}`} className="min-w-0">
-                <Button variant="ghost" className="w-full sm:w-auto text-sm">
-                  <span className="truncate">&larr; {lesson.prevLesson.title}</span>
-                </Button>
-              </Link>
-            ) : (
-              <div className="hidden sm:block" />
-            )}
+          {/* Module Complete Upgrade Prompt */}
+          {showModuleComplete && (
+            <div className="mt-8">
+              <UpgradePrompt variant="module-complete" />
+            </div>
+          )}
 
-            {isLessonComplete || exerciseCount === 0 ? (
-              <Button onClick={handleLessonComplete} disabled={completing} className="text-sm sm:text-base">
-                {completing
-                  ? "Completing..."
-                  : lesson.nextLesson
-                    ? `Next: ${lesson.nextLesson.title}`
-                    : "Complete Lesson"}
-              </Button>
-            ) : (
-              <Button disabled className="text-xs sm:text-sm">
-                Complete exercises ({completedExercises.length}/{exerciseCount})
-              </Button>
-            )}
-          </div>
+          {/* Locked Lesson Upgrade Prompt */}
+          {isLocked && (
+            <div className="mt-8">
+              <UpgradePrompt variant="lesson-locked" />
+            </div>
+          )}
+
+          {/* Navigation */}
+          {!showModuleComplete && (
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-8 sm:mt-12 pt-4 sm:pt-6 border-t border-dark-200">
+              {lesson.prevLesson ? (
+                <Link href={`/lessons/${lesson.prevLesson.id}`} className="min-w-0">
+                  <Button variant="ghost" className="w-full sm:w-auto text-sm">
+                    <span className="truncate">&larr; {lesson.prevLesson.title}</span>
+                  </Button>
+                </Link>
+              ) : (
+                <div className="hidden sm:block" />
+              )}
+
+              {isLocked ? (
+                <Link href="/pricing">
+                  <Button className="text-sm sm:text-base">Upgrade to Pro</Button>
+                </Link>
+              ) : isLessonComplete || exerciseCount === 0 ? (
+                <Button onClick={handleLessonComplete} disabled={completing} className="text-sm sm:text-base">
+                  {completing
+                    ? "Completing..."
+                    : lesson.nextLesson
+                      ? `Next: ${lesson.nextLesson.title}`
+                      : "Complete Lesson"}
+                </Button>
+              ) : (
+                <Button disabled className="text-xs sm:text-sm">
+                  Complete exercises ({completedExercises.length}/{exerciseCount})
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* Mobile: Ask Py Button */}
           <div className="lg:hidden mt-6 sm:mt-8 p-3 sm:p-4 bg-primary-50 rounded-xl border border-primary-200">

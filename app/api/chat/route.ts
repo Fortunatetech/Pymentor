@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
         subscription.plan === "lifetime") &&
       (subscription.status === "active" || subscription.status === "trialing");
 
-    const dailyLimit = isPro ? 500 : 10;
+    const dailyLimit = isPro ? 500 : 15;
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
           error: "rate_limit",
           message: isPro
             ? "You've reached your daily limit of 500 messages"
-            : "Free plan is limited to 10 messages per day. Upgrade to Pro for more!",
+            : "Free plan is limited to 15 messages per day. Upgrade to Pro for more!",
           limit: dailyLimit,
           used: messageCount,
         },

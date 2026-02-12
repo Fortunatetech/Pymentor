@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Streak, XPDisplay } from "@/components/ui/streak";
 import { useUser } from "@/hooks/use-user";
+import { useSubscription } from "@/hooks/use-subscription";
 import { cn } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
 import { DashboardTour } from "@/components/dashboard-tour";
@@ -41,6 +42,7 @@ interface PathWithProgress {
 
 export default function DashboardPage() {
   const { profile, loading: userLoading, authUser } = useUser();
+  const { isPro } = useSubscription();
   const searchParams = useSearchParams();
   const isNewUser = searchParams.get("tour") === "true";
   const supabase = useMemo(() => createClient(), []);
@@ -342,33 +344,41 @@ export default function DashboardPage() {
           <CardContent className="p-4 sm:p-6">
             <h2 className="font-semibold text-dark-900 mb-3 sm:mb-4 text-sm sm:text-base">Your Learning Paths</h2>
             <div className="space-y-3 sm:space-y-4">
-              {paths.map((path) => (
-                <div
-                  key={path.title}
-                  className={cn("flex items-center gap-3 sm:gap-4", path.locked && "opacity-50")}
-                >
-                  <div className={cn(
-                    "w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-lg sm:text-xl flex-shrink-0",
-                    path.locked ? "bg-dark-100" : "bg-primary-100"
-                  )}>
-                    {path.icon || "📚"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={cn(
-                        "font-medium text-sm sm:text-base truncate",
-                        path.locked ? "text-dark-700" : "text-dark-900"
-                      )}>
-                        {path.title}
-                      </span>
-                      <span className="text-xs sm:text-sm text-dark-500 flex-shrink-0 ml-2">
-                        {path.locked ? "Locked" : `${path.progress}%`}
-                      </span>
+              {paths.map((path) => {
+                const needsPro = !isPro && path.order_index > 1;
+                return (
+                  <div
+                    key={path.title}
+                    className={cn("flex items-center gap-3 sm:gap-4", (path.locked || needsPro) && "opacity-50")}
+                  >
+                    <div className={cn(
+                      "w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center text-lg sm:text-xl flex-shrink-0",
+                      (path.locked || needsPro) ? "bg-dark-100" : "bg-primary-100"
+                    )}>
+                      {(path.locked || needsPro) ? "🔒" : (path.icon || "📚")}
                     </div>
-                    <Progress value={path.progress} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={cn(
+                          "font-medium text-sm sm:text-base truncate",
+                          (path.locked || needsPro) ? "text-dark-700" : "text-dark-900"
+                        )}>
+                          {path.title}
+                        </span>
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                          {needsPro && (
+                            <Badge variant="accent" className="text-xs">Pro</Badge>
+                          )}
+                          <span className="text-xs sm:text-sm text-dark-500">
+                            {path.locked || needsPro ? "Locked" : `${path.progress}%`}
+                          </span>
+                        </div>
+                      </div>
+                      <Progress value={needsPro ? 0 : path.progress} />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

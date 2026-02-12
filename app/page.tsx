@@ -159,39 +159,39 @@ export default function HomePage() {
               price="$0"
               period="/mo"
               features={[
-                { text: "3 lessons", included: true },
-                { text: "10 AI messages/day", included: true },
+                { text: "Module 1 lessons", included: true },
+                { text: "15 AI messages/day", included: true },
                 { text: "Code playground", included: true },
-                { text: "Streaks & progress", included: false },
+                { text: "Daily challenges", included: false },
               ]}
               buttonText="Get Started"
               buttonVariant="secondary"
             />
             <PricingCard
-              name="Pro Monthly"
-              price="$15"
+              name="Pro Annual"
+              price="$8"
               period="/mo"
               popular
+              savings="$96/yr — Save 33%"
               features={[
                 { text: "Unlimited lessons", included: true },
-                { text: "Unlimited AI chat", included: true },
-                { text: "All projects", included: true },
+                { text: "500 AI messages/day", included: true },
+                { text: "Daily challenges", included: true },
                 { text: "Streaks & progress", included: true },
               ]}
-              buttonText="Subscribe"
+              buttonText="Best Value"
               buttonVariant="primary"
             />
             <PricingCard
-              name="Pro Annual"
+              name="Pro Monthly"
               price="$12"
               period="/mo"
-              savings="Save 20%"
               features={[
                 { text: "Everything in Pro", included: true },
+                { text: "Cancel anytime", included: true },
                 { text: "Priority support", included: true },
-                { text: "Early access features", included: true },
               ]}
-              buttonText="Best Value"
+              buttonText="Subscribe"
               buttonVariant="secondary"
             />
           </div>
