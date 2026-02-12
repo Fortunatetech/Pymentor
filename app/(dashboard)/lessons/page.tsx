@@ -190,8 +190,7 @@ export default function LessonsPage() {
             {currentPath.modules?.map((module, moduleIndex) => {
               // For free users in Python Fundamentals: modules 1-3 free, 4+ locked
               // For Pro users: all modules accessible
-              const isModuleLocked = !isPro && module.order_index > 3;
-              console.log(`Module: ${module.title}, Order: ${module.order_index}, Locked: ${isModuleLocked}`);
+              const isModuleLocked = !isPro && Number(module.order_index) > 3;
 
               return (
                 <Card key={module.id} className={isModuleLocked ? "opacity-75" : ""}>

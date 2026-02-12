@@ -7,6 +7,7 @@
 @layer base {
   html, body {
     @apply overflow-x-hidden;
+    scroll-behavior: smooth;
   }
   body {
     @apply font-sans text-dark-900 bg-dark-50 antialiased;
