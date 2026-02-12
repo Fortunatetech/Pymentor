@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,7 @@ interface LearningPath {
 
 export default function LessonsPage() {
   const { isPro } = useSubscription();
+  const router = useRouter();
   const [paths, setPaths] = useState<LearningPath[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -50,9 +52,15 @@ export default function LessonsPage() {
       const response = await fetch("/api/lessons");
       const data = await response.json();
       setPaths(data);
-      // Select first unlocked path, or first path if none unlocked
-      const firstUnlocked = data.find((p: LearningPath) => p.isUnlocked);
-      setSelectedPath(firstUnlocked?.id || data[0]?.id);
+      // For free users, select Python Fundamentals (order_index 1)
+      // For Pro users, select first unlocked path
+      if (isPro) {
+        const firstUnlocked = data.find((p: LearningPath) => p.isUnlocked);
+        setSelectedPath(firstUnlocked?.id || data[0]?.id);
+      } else {
+        const fundamentals = data.find((p: LearningPath) => p.order_index === 1);
+        setSelectedPath(fundamentals?.id || data[0]?.id);
+      }
     } catch (error) {
       console.error("Failed to fetch lessons:", error);
     } finally {
@@ -109,38 +117,43 @@ export default function LessonsPage() {
           }}
         >
           {paths.map((path) => {
-            const unlockReq = getUnlockRequirement(path);
+            // For free users: only Python Fundamentals (order_index 1) is accessible
+            // For Pro users: use the existing progressive unlock logic
+            const isPathAccessible = isPro ? path.isUnlocked : path.order_index === 1;
+
             return (
               <button
                 key={path.id}
-                onClick={() => path.isUnlocked && setSelectedPath(path.id)}
-                className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl transition-all text-sm sm:text-base whitespace-nowrap flex-shrink-0 ${!path.isUnlocked
-                  ? "bg-dark-100 border border-dark-200 opacity-75 cursor-not-allowed"
+                onClick={() => {
+                  if (isPathAccessible) {
+                    setSelectedPath(path.id);
+                  } else {
+                    router.push("/pricing");
+                  }
+                }}
+                className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl transition-all text-sm sm:text-base whitespace-nowrap flex-shrink-0 ${!isPathAccessible
+                  ? "bg-dark-100 border border-dark-200 opacity-75 cursor-pointer hover:opacity-90"
                   : selectedPath === path.id
                     ? "bg-primary-100 border-2 border-primary-500"
                     : "bg-white border border-dark-200 hover:border-dark-300"
                   }`}
-                disabled={!path.isUnlocked}
-                title={unlockReq ? `Complete ${unlockReq.needed}% of ${unlockReq.prevTitle} to unlock` : undefined}
               >
                 <span className="text-lg sm:text-2xl">
-                  {path.isUnlocked ? path.icon : "🔒"}
+                  {isPathAccessible ? path.icon : "🔒"}
                 </span>
                 <div className="text-left">
                   <div className="font-medium text-dark-900 flex items-center gap-1 sm:gap-2">
                     {path.title}
-                    {!path.isUnlocked && (
-                      <span className="text-xs text-dark-400 font-normal">
-                        (Locked)
-                      </span>
+                    {!isPathAccessible && (
+                      <Badge variant="accent" className="text-xs">
+                        Pro
+                      </Badge>
                     )}
                   </div>
                   <div className="text-xs text-dark-500">
-                    {path.isUnlocked
+                    {isPathAccessible
                       ? `${path.completionPercentage}% complete`
-                      : unlockReq
-                        ? `${unlockReq.prevCompletion}/${unlockReq.needed}%`
-                        : "Locked"
+                      : "Upgrade to unlock"
                     }
                   </div>
                 </div>
@@ -174,24 +187,42 @@ export default function LessonsPage() {
 
           {/* Modules */}
           <div className="space-y-6">
-            {currentPath.modules?.map((module, moduleIndex) => (
-              <Card key={module.id}>
-                <CardContent className="p-3 sm:p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center text-primary-700 font-semibold text-sm flex-shrink-0">
-                      {moduleIndex + 1}
-                    </div>
-                    <h2 className="font-semibold text-base sm:text-lg text-dark-900 min-w-0 truncate">{module.title}</h2>
-                  </div>
+            {currentPath.modules?.map((module, moduleIndex) => {
+              // For free users in Python Fundamentals: modules 1-3 free, 4+ locked
+              // For Pro users: all modules accessible
+              const isModuleLocked = !isPro && module.order_index > 3;
+              console.log(`Module: ${module.title}, Order: ${module.order_index}, Locked: ${isModuleLocked}`);
 
-                  <div className="space-y-1">
-                    {module.lessons?.map((lesson) => (
-                      <LessonRow key={lesson.id} lesson={lesson} isLocked={!isPro && module.order_index > 1} />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+              return (
+                <Card key={module.id} className={isModuleLocked ? "opacity-75" : ""}>
+                  <CardContent className="p-3 sm:p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-semibold text-sm flex-shrink-0 ${isModuleLocked
+                        ? "bg-dark-100 text-dark-400"
+                        : "bg-primary-100 text-primary-700"
+                        }`}>
+                        {isModuleLocked ? "🔒" : moduleIndex + 1}
+                      </div>
+                      <h2 className={`font-semibold text-base sm:text-lg min-w-0 truncate ${isModuleLocked ? "text-dark-500" : "text-dark-900"
+                        }`}>
+                        {module.title}
+                      </h2>
+                      {isModuleLocked && (
+                        <Badge variant="accent" className="flex-shrink-0 text-xs">
+                          Pro
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      {module.lessons?.map((lesson) => (
+                        <LessonRow key={lesson.id} lesson={lesson} isLocked={isModuleLocked} />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </>
       )}
@@ -201,6 +232,7 @@ export default function LessonsPage() {
 
 
 function LessonRow({ lesson, isLocked = false }: { lesson: Lesson; isLocked?: boolean }) {
+  const router = useRouter();
   const status = lesson.userProgress?.status || "not_started";
 
   const statusConfig = {
@@ -211,26 +243,48 @@ function LessonRow({ lesson, isLocked = false }: { lesson: Lesson; isLocked?: bo
 
   const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.not_started;
 
+  // Locked lessons: redirect to /pricing on click instead of opening the lesson
+  if (isLocked) {
+    return (
+      <button
+        onClick={() => router.push("/pricing")}
+        className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl hover:bg-dark-50 transition-colors group w-full text-left opacity-60 cursor-pointer"
+      >
+        <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 border-2 border-dark-200 text-dark-300">
+          🔒
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm sm:text-base text-dark-500 truncate">
+            {lesson.title}
+          </div>
+          <div className="text-xs sm:text-sm text-dark-500">
+            {lesson.estimated_minutes} min • {lesson.xp_reward} XP
+          </div>
+        </div>
+        <Badge variant="accent" className="flex-shrink-0 text-xs sm:text-sm">
+          Pro
+        </Badge>
+      </button>
+    );
+  }
+
   return (
     <Link
       href={`/lessons/${lesson.id}`}
-      className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl hover:bg-dark-50 transition-colors group ${isLocked ? "opacity-60" : ""}`}
+      className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl hover:bg-dark-50 transition-colors group"
     >
       <div
-        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${
-          isLocked
-            ? "border-2 border-dark-200 text-dark-300"
-            : status === "completed"
-              ? "bg-green-500 text-white"
-              : status === "in_progress"
-                ? "bg-accent-500 text-white"
-                : "border-2 border-dark-300 text-dark-300"
-        }`}
+        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${status === "completed"
+          ? "bg-green-500 text-white"
+          : status === "in_progress"
+            ? "bg-accent-500 text-white"
+            : "border-2 border-dark-300 text-dark-300"
+          }`}
       >
-        {isLocked ? "🔒" : config.icon}
+        {config.icon}
       </div>
       <div className="flex-1 min-w-0">
-        <div className={`font-medium text-sm sm:text-base transition-colors truncate ${isLocked ? "text-dark-500" : "text-dark-900 group-hover:text-primary-600"}`}>
+        <div className="font-medium text-sm sm:text-base transition-colors truncate text-dark-900 group-hover:text-primary-600">
           {lesson.title}
         </div>
         <div className="text-xs sm:text-sm text-dark-500">
@@ -238,17 +292,10 @@ function LessonRow({ lesson, isLocked = false }: { lesson: Lesson; isLocked?: bo
           {lesson.is_free && <span className="ml-1 text-primary-600 text-xs">Free</span>}
         </div>
       </div>
-      {isLocked ? (
-        <Badge variant="accent" className="flex-shrink-0 text-xs sm:text-sm">
-          <span className="hidden sm:inline">Pro</span>
-          <span className="sm:hidden">Pro</span>
-        </Badge>
-      ) : (
-        <Badge variant={config.badge} className="flex-shrink-0 text-xs sm:text-sm">
-          <span className="hidden sm:inline">{config.fullText}</span>
-          <span className="sm:hidden">{config.text}</span>
-        </Badge>
-      )}
+      <Badge variant={config.badge} className="flex-shrink-0 text-xs sm:text-sm">
+        <span className="hidden sm:inline">{config.fullText}</span>
+        <span className="sm:hidden">{config.text}</span>
+      </Badge>
     </Link>
   );
 }

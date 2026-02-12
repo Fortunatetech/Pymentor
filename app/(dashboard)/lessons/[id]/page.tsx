@@ -25,14 +25,17 @@ interface LessonData {
   };
   module: {
     title: string;
+    order_index: number;
     path: {
       title: string;
+      order_index: number;
     };
   };
   prevLesson: { id: string; title: string; module?: { order_index: number } } | null;
   nextLesson: { id: string; title: string; module?: { order_index: number } } | null;
   userProgress: { status: string; score: number | null } | null;
   moduleOrderIndex: number;
+  pathOrderIndex: number;
 }
 
 interface CompletionResult {
@@ -112,10 +115,33 @@ export default function LessonPage() {
     );
   }
 
-  const isLocked = !isPro && (lesson.moduleOrderIndex ?? 1) > 1;
+  // Check if lesson is locked for free user
+  // Locked if: not in Python Fundamentals (path order_index != 1), OR module order_index > 3
+  const pathOrderIndex = lesson.pathOrderIndex ?? lesson.module?.path?.order_index ?? 1;
+  const moduleOrderIndex = lesson.moduleOrderIndex ?? lesson.module?.order_index ?? 1;
+  const isLocked = !isPro && (pathOrderIndex !== 1 || moduleOrderIndex > 3);
   const nextLessonLocked = !isPro && lesson.nextLesson?.module?.order_index
-    ? lesson.nextLesson.module.order_index > 1
+    ? lesson.nextLesson.module.order_index > 3
     : false;
+
+  // Redirect locked lessons to pricing
+  useEffect(() => {
+    if (isLocked) {
+      router.push("/pricing");
+    }
+  }, [isLocked, router]);
+
+  // Show loading state while redirecting
+  if (isLocked) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <div className="text-4xl mb-4">🔒</div>
+          <p className="text-dark-500">This lesson requires Pro. Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
 
   const sections = lesson.content?.sections || [];
   const exerciseCount = sections.filter(

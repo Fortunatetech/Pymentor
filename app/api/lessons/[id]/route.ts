@@ -99,6 +99,7 @@ export async function GET(
     nextLesson,
     userProgress,
     moduleOrderIndex: (lesson.module as any)?.order_index ?? 1,
+    pathOrderIndex: (lesson.module as any)?.path?.order_index ?? 1,
   });
 }
 
@@ -128,16 +129,21 @@ export async function POST(
     );
   }
 
-  // Check if lesson is behind paywall (module order_index > 1)
+  // Check if lesson is behind paywall
+  // Locked if: not in Python Fundamentals (path order_index != 1) OR module order_index > 3
   const { data: lessonCheck } = await supabase
     .from("lessons")
-    .select("module:modules(order_index)")
+    .select("module:modules(order_index, path:learning_paths(order_index))")
     .eq("id", params.id)
     .single();
 
   const moduleOrderIndex = (lessonCheck?.module as any)?.order_index ?? 1;
+  const pathOrderIndex = (lessonCheck?.module as any)?.path?.order_index ?? 1;
 
-  if (moduleOrderIndex > 1) {
+  // Lesson is locked for free users if:
+  // 1. Learning path is not Python Fundamentals (order_index != 1), OR
+  // 2. Module order_index > 3 (Control Flow, Loops, Functions)
+  if (pathOrderIndex !== 1 || moduleOrderIndex > 3) {
     // Check subscription
     const { data: subscription } = await supabase
       .from("subscriptions")
