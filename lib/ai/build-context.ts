@@ -72,7 +72,7 @@ export async function buildAIContext(
 
   try {
     // Fetch specific lesson if lesson_id is provided, otherwise get current in-progress lesson
-    let currentLesson: any = null;
+    let currentLesson: { lessons: unknown } | null = null;
     if (lessonId) {
       const { data: specificLesson } = await supabase
         .from("lessons")
@@ -95,7 +95,7 @@ export async function buildAIContext(
     }
 
     if (currentLesson?.lessons) {
-      const lesson = currentLesson.lessons as any;
+      const lesson = currentLesson.lessons as { title: string; concepts_taught?: string[] };
       context.current_lesson = {
         title: lesson.title,
         concepts: lesson.concepts_taught || [],

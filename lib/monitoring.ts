@@ -67,11 +67,11 @@ export function startTransaction(
 /**
  * Wrapper for API route handlers with error tracking
  */
-export function withErrorTracking<T extends (...args: any[]) => Promise<Response>>(
+export function withErrorTracking<T extends (...args: unknown[]) => Promise<Response>>(
     handler: T,
     routeName: string
 ): T {
-    return (async (...args: any[]) => {
+    return (async (...args: unknown[]) => {
         try {
             return await handler(...args);
         } catch (error) {

@@ -52,11 +52,11 @@ export async function buildLearningProgression(
     // Flatten hierarchy into ordered list
     const flatLessons: FlatLesson[] = [];
     for (const path of paths) {
-      const modules = (path.modules as any[]) || [];
-      modules.sort((a: any, b: any) => a.order_index - b.order_index);
+      const modules = (path.modules as { title: string; order_index: number; lessons: unknown[] }[]) || [];
+      modules.sort((a, b) => a.order_index - b.order_index);
       for (const mod of modules) {
-        const lessons = (mod.lessons as any[]) || [];
-        lessons.sort((a: any, b: any) => a.order_index - b.order_index);
+        const lessons = (mod.lessons as { id: string; title: string; order_index: number; concepts_taught?: string[] }[]) || [];
+        lessons.sort((a, b) => a.order_index - b.order_index);
         for (const lesson of lessons) {
           flatLessons.push({
             id: lesson.id,
