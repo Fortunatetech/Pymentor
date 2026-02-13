@@ -65,6 +65,22 @@ export default function LessonPage() {
 
   const lessonStatusRef = useRef<string>("not_started");
 
+  // Check if lesson is locked for free user
+  // Locked if: not in Python Fundamentals (path order_index != 1), OR module order_index > 3
+  const pathOrderIndex = lesson?.pathOrderIndex ?? lesson?.module?.path?.order_index ?? 1;
+  const moduleOrderIndex = lesson?.moduleOrderIndex ?? lesson?.module?.order_index ?? 1;
+  const isLocked = !isPro && !!lesson && (pathOrderIndex !== 1 || moduleOrderIndex > 3);
+  const nextLessonLocked = !isPro && lesson?.nextLesson?.module?.order_index
+    ? lesson.nextLesson.module.order_index > 3
+    : false;
+
+  // Redirect locked lessons to pricing
+  useEffect(() => {
+    if (isLocked) {
+      router.push("/pricing");
+    }
+  }, [isLocked, router]);
+
   useEffect(() => {
     async function fetchLesson() {
       try {
@@ -115,21 +131,7 @@ export default function LessonPage() {
     );
   }
 
-  // Check if lesson is locked for free user
-  // Locked if: not in Python Fundamentals (path order_index != 1), OR module order_index > 3
-  const pathOrderIndex = lesson.pathOrderIndex ?? lesson.module?.path?.order_index ?? 1;
-  const moduleOrderIndex = lesson.moduleOrderIndex ?? lesson.module?.order_index ?? 1;
-  const isLocked = !isPro && (pathOrderIndex !== 1 || moduleOrderIndex > 3);
-  const nextLessonLocked = !isPro && lesson.nextLesson?.module?.order_index
-    ? lesson.nextLesson.module.order_index > 3
-    : false;
 
-  // Redirect locked lessons to pricing
-  useEffect(() => {
-    if (isLocked) {
-      router.push("/pricing");
-    }
-  }, [isLocked, router]);
 
   // Show loading state while redirecting
   if (isLocked) {

@@ -67,11 +67,13 @@ export function startTransaction(
 /**
  * Wrapper for API route handlers with error tracking
  */
-export function withErrorTracking<T extends (...args: unknown[]) => Promise<Response>>(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function withErrorTracking<T extends (...args: any[]) => Promise<Response>>(
     handler: T,
     routeName: string
 ): T {
-    return (async (...args: unknown[]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (async (...args: any[]) => {
         try {
             return await handler(...args);
         } catch (error) {

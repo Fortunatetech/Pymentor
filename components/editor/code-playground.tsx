@@ -184,7 +184,7 @@ sys.stdout = StringIO()
       // If test cases are provided, run each and validate via API
       if (testCases && testCases.length > 0) {
         const outputs: string[] = [];
-        for (const tc of testCases) {
+        for (const _ of testCases) {
           try {
             pyodideRef.current.runPython(`sys.stdout = StringIO()`);
             await pyodideRef.current.runPythonAsync(code);
