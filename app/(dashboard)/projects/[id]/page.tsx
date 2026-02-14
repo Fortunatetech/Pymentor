@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import { useSubscription } from "@/hooks";
 import { projects } from "../data";
 import confetti from "canvas-confetti";
 import { useToast } from "@/components/ui/use-toast";
-import { title } from "process";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -25,6 +24,7 @@ export default function ProjectPage() {
   const [validationStatus, setValidationStatus] = useState<boolean | null>(null);
   const [showStepDrawer, setShowStepDrawer] = useState(false);
   const [previouslyCompleted, setPreviouslyCompleted] = useState(false);
+  const [shouldCelebrate, setShouldCelebrate] = useState(false);
 
   // Check API for existing completion on mount
   useEffect(() => {
@@ -54,6 +54,32 @@ export default function ProjectPage() {
   useEffect(() => {
     setValidationStatus(null);
   }, [currentStep]);
+
+  // Handle completion side effects uniquely
+  useEffect(() => {
+    if (shouldCelebrate && !previouslyCompleted) {
+      setPreviouslyCompleted(true);
+      triggerCelebration();
+
+      // Call API to mark completed
+      fetch("/api/projects/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: projectId }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.xp_earned > 0) {
+            toast({
+              title: "Project Completed! 🎉",
+              description: `You earned ${data.xp_earned} XP!`,
+              variant: "default", // Success style
+            });
+          }
+        })
+        .catch(err => console.error("Failed to save progress:", err));
+    }
+  }, [shouldCelebrate, previouslyCompleted, projectId, toast]);
 
   if (!project) {
     return (
@@ -103,26 +129,12 @@ export default function ProjectPage() {
 
       // Check if this was the last step
       if (newCompleted.length === project.steps.length) {
-        // Call API to mark completed
-        fetch("/api/projects/complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ project_id: projectId }),
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (data.xp_earned > 0) {
-              toast({
-                title: "Project Completed! 🎉",
-                description: `You earned ${data.xp_earned} XP!`,
-                variant: "default", // Success style
-              });
-            }
-          })
-          .catch(err => console.error("Failed to save progress:", err));
-
-        setPreviouslyCompleted(true);
-        triggerCelebration();
+        if (!previouslyCompleted) {
+          setShouldCelebrate(true);
+        } else {
+          // If already previously completed, just save the new local state without celebration
+          setPreviouslyCompleted(true);
+        }
       }
     }
 
@@ -134,6 +146,7 @@ export default function ProjectPage() {
   const handleTryAgain = () => {
     // Just reset local state, keep DB record
     setPreviouslyCompleted(false);
+    setShouldCelebrate(false);
     setCompletedSteps([]);
     setCurrentStep(0);
     setValidationStatus(null);
