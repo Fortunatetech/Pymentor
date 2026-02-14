@@ -99,7 +99,7 @@ export default function SignupPage() {
         </div>
 
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-dark-100">
-          <button
+          {/* <button
             onClick={handleGoogleSignup}
             disabled={googleLoading || loading}
             className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-dark-200 rounded-xl hover:bg-dark-50 transition-colors mb-6 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -120,7 +120,7 @@ export default function SignupPage() {
             <div className="relative flex justify-center text-sm">
               <span className="px-2 bg-white text-dark-400">or</span>
             </div>
-          </div>
+          </div> */}
 
           <form onSubmit={handleSignup} className="space-y-4">
             <Input
