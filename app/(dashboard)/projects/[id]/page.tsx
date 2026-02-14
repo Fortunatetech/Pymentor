@@ -228,7 +228,7 @@ export default function ProjectPage() {
   );
 
   return (
-    <div className="-m-8 min-h-screen flex flex-col lg:flex-row">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-4rem)] lg:h-[calc(100vh-2rem)] -m-4 sm:-m-6 lg:-m-8">
       {/* ── Mobile Header ────────────────────────────────────── */}
       <div className="lg:hidden bg-white border-b border-dark-200 p-4 sticky top-0 z-30">
         <div className="flex items-center justify-between mb-2">
@@ -325,7 +325,7 @@ export default function ProjectPage() {
       </div>
 
       {/* ── Main Content ─────────────────────────────────────── */}
-      <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto bg-dark-50">
+      <div className="flex-1 p-3 sm:p-6 lg:p-8 overflow-y-auto bg-dark-50">
         <div className="max-w-4xl mx-auto">
           <div className="mb-6">
             <h1 className="text-xl sm:text-2xl font-bold text-dark-900 mb-2">

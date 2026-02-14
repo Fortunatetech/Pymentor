@@ -211,6 +211,11 @@ sys.stdout = StringIO()
         // Simple output comparison
         passed = outputStr === expectedOutput.trim();
         setIsCorrect(passed);
+      } else {
+        // No specific validation required (open-ended step)
+        // If code ran without error (we are here), then it passes
+        passed = true;
+        setIsCorrect(true);
       }
 
       if (passed) {
@@ -321,7 +326,7 @@ sys.stdout = StringIO()
           >
             {isLoading ? "..." : isRunning ? "..." : "▶ Run"}
           </Button>
-          {(testCases || expectedOutput !== undefined || onSubmit) && (
+          {(testCases || expectedOutput !== undefined || onSuccess || onSubmit) && (
             <Button
               size="sm"
               onClick={submitCode}
