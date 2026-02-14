@@ -10,6 +10,17 @@ interface TestCase {
   description?: string;
 }
 
+export interface ProjectContext {
+  title: string;
+  description: string;
+  stepInstruction: string;
+}
+
+export interface LessonContext {
+  title: string;
+  contentSummary: string;
+}
+
 interface CodePlaygroundProps {
   initialCode?: string;
   expectedOutput?: string;
@@ -20,6 +31,8 @@ interface CodePlaygroundProps {
   onSubmit?: (code: string) => void;
   readOnly?: boolean;
   lessonId?: string;
+  projectContext?: ProjectContext;
+  lessonContext?: LessonContext;
 }
 
 declare global {
@@ -39,6 +52,8 @@ export function CodePlayground({
   onSubmit,
   readOnly = false,
   lessonId,
+  projectContext,
+  lessonContext,
 }: CodePlaygroundProps) {
   // Generate storage key based on lessonId or a hash of initialCode
   const storageKey = lessonId ? `pymentor-code-${lessonId}` : null;
@@ -247,7 +262,7 @@ sys.stdout = StringIO()
       const res = await fetch("/api/ai/explain-error", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, error, lessonId }),
+        body: JSON.stringify({ code, error, lessonId, projectContext, lessonContext }),
       });
 
       if (!res.ok) throw new Error("Failed to fetch diagnostics");

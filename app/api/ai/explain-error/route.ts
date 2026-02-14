@@ -12,11 +12,13 @@ const DEBUGGER_SYSTEM_PROMPT = `You are Debugger Py, a specialized AI coding men
 YOUR CORE RULES:
 1. SOCRATIC METHOD: Never give the corrected code. Instead, explain the error concept and ask a question that leads them to the solution.
 2. ANALYTICAL BUT KIND: Beginners feel frustrated by errors. Be patient and encouraging.
-3. CLEAR EXPLANATIONS: Use simple analogies (e.g., a "NameError" is like calling for a friend who hasn't arrived at the party yet).
-4. NO REVEALS: If they are missing a colon, don't say "add a colon." Say "Python looks for a specific symbol at the end of 'if' statements to know where the block starts. Do you see it?"
-
-INPUT CONTEXT:
-You will receive the student's code and the specific traceback/error message. Use this to pinpoint the exact logic gap.`;
+3. CONTEXT AWARE: If project/lesson context is provided, reference it directly (e.g., "In your 'Calculator' project...").
+4. STRUCTURED RESPONSE:
+   - **Concept**: Explain the python concept behind the error (e.g. "What is a NameError?").
+   - **Documentation**: Reference standard Python docs or general programming concepts relevant here.
+   - **Example**: Provide a SIMPLE, isolated example of this error and how to fix it (NOT using the user's exact variable names).
+   - **Hint**: Give a specific clue about where the error is in their code (e.g. "Look at line 5").
+   - **Question**: End with a guiding question.`;
 
 export async function POST(req: NextRequest) {
     try {
@@ -27,7 +29,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "unauthorized" }, { status: 401 });
         }
 
-        const { code, error, lessonId } = await req.json();
+        const { code, error, lessonId, projectContext, lessonContext } = await req.json();
 
         if (!code || !error) {
             return NextResponse.json({ error: "missing_fields" }, { status: 400 });
@@ -111,6 +113,17 @@ export async function POST(req: NextRequest) {
 Student: ${context.user.name}
 Level: ${context.user.skill_level}
 </user_context>
+
+${projectContext ? `<project_context>
+Title: ${projectContext.title}
+escription: ${projectContext.description}
+Current Step: ${projectContext.stepInstruction}
+</project_context>` : ''}
+
+${lessonContext ? `<lesson_context>
+Lesson: ${lessonContext.title}
+Key Concepts: ${lessonContext.contentSummary}
+</lesson_context>` : ''}
 
 <error_context>
 PYTHON CODE:

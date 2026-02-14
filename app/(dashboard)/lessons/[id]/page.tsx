@@ -435,6 +435,14 @@ export default function LessonPage() {
                       lessonId={lessonId}
                       initialCode={section.starter}
                       expectedOutput={section.expectedOutput}
+                      lessonContext={{
+                        title: lesson.title,
+                        contentSummary: sections
+                          .filter((s: any) => s.type === 'text')
+                          .map((s: any) => s.content)
+                          .join('\n')
+                          .slice(0, 1000) // Limit context size
+                      }}
                       onSuccess={() =>
                         handleExerciseComplete(currentExerciseIndex)
                       }

@@ -25,6 +25,7 @@ export default function ProjectPage() {
   const [showStepDrawer, setShowStepDrawer] = useState(false);
   const [previouslyCompleted, setPreviouslyCompleted] = useState(false);
   const [shouldCelebrate, setShouldCelebrate] = useState(false);
+  const celebrationPerformed = useRef(false);
 
   // Check API for existing completion on mount
   useEffect(() => {
@@ -56,8 +57,10 @@ export default function ProjectPage() {
   }, [currentStep]);
 
   // Handle completion side effects uniquely
+  // Handle completion side effects uniquely
   useEffect(() => {
-    if (shouldCelebrate && !previouslyCompleted) {
+    if (shouldCelebrate && !celebrationPerformed.current) {
+      celebrationPerformed.current = true;
       setPreviouslyCompleted(true);
       triggerCelebration();
 
@@ -77,9 +80,12 @@ export default function ProjectPage() {
             });
           }
         })
-        .catch(err => console.error("Failed to save progress:", err));
+        .catch(err => {
+          console.error("Failed to save progress:", err);
+          // If failed, maybe reset lock? keeping it locked avoids spam though.
+        });
     }
-  }, [shouldCelebrate, previouslyCompleted, projectId, toast]);
+  }, [shouldCelebrate, projectId, toast]);
 
   if (!project) {
     return (
@@ -147,6 +153,7 @@ export default function ProjectPage() {
     // Just reset local state, keep DB record
     setPreviouslyCompleted(false);
     setShouldCelebrate(false);
+    celebrationPerformed.current = false;
     setCompletedSteps([]);
     setCurrentStep(0);
     setValidationStatus(null);
@@ -362,6 +369,11 @@ export default function ProjectPage() {
               onRun={handleCodeRun}
               onSuccess={handleSuccess}
               onFailure={handleFailure}
+              projectContext={{
+                title: project.title,
+                description: project.description,
+                stepInstruction: step.instruction,
+              }}
             />
           </div>
 
