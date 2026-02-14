@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { UpgradePrompt } from "@/components/ui/upgrade-prompt";
 import { CodePlayground } from "@/components/editor/code-playground";
 import { useSubscription } from "@/hooks";
+import { useUser } from "@/hooks/use-user";
 
 import { PageLoading } from "@/components/ui/loading-spinner";
 
@@ -46,6 +47,7 @@ interface ChallengeHistory {
 
 export default function ChallengePage() {
   const { isPro, loading: subLoading } = useSubscription();
+  const { refreshProfile } = useUser();
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [loading, setLoading] = useState(true);
   const [completed, setCompleted] = useState(false);
@@ -133,6 +135,8 @@ export default function ChallengePage() {
       if (res.ok) {
         const data = await res.json();
         setXpAwarded(data.xp_earned);
+        // Refresh profile so XP updates across dashboard & progress
+        refreshProfile();
 
         // Show success popup based on attempt
         if (attemptNumber === 1) {

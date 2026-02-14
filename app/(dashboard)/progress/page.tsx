@@ -18,7 +18,7 @@ interface WeeklyDay {
 }
 
 export default function ProgressPage() {
-  const { profile, authUser, loading: userLoading } = useUser();
+  const { profile, authUser, loading: userLoading, refreshProfile } = useUser();
   const supabase = useMemo(() => createClient(), []);
   const [concepts, setConcepts] = useState<ConceptMastery[]>([]);
   const [weeklyActivity, setWeeklyActivity] = useState<WeeklyDay[]>([]);
@@ -26,6 +26,12 @@ export default function ProgressPage() {
   const [pathCompleted, setPathCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Refresh profile on mount so XP/streak are always fresh
+  useEffect(() => {
+    if (!userLoading && authUser) refreshProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // Wait for auth to finish

@@ -52,6 +52,16 @@ export const challengeCompleteSchema = z.object({
 export type ChallengeCompleteInput = z.infer<typeof challengeCompleteSchema>;
 
 // ============================================
+// Project API Validation
+// ============================================
+
+export const projectCompleteSchema = z.object({
+    project_id: z.string().min(1, "Project ID is required"),
+});
+
+export type ProjectCompleteInput = z.infer<typeof projectCompleteSchema>;
+
+// ============================================
 // Billing API Validation
 // ============================================
 

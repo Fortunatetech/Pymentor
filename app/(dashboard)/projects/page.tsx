@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,10 +18,29 @@ const levels: { id: ProjectLevel | "all"; label: string }[] = [
   { id: "advanced", label: "Advanced" },
 ];
 
+const STORAGE_KEY = "pymentor_completed_projects";
+
 export default function ProjectsPage() {
   const { isPro } = useSubscription();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLevel, setSelectedLevel] = useState<ProjectLevel | "all">("all");
+  const [completedProjects, setCompletedProjects] = useState<Record<string, { completedAt: string }>>({});
+
+  // Fetch completed projects from API on mount
+  useEffect(() => {
+    async function fetchCompletedProjects() {
+      try {
+        const res = await fetch("/api/projects/completed");
+        if (res.ok) {
+          const data = await res.json();
+          setCompletedProjects(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch completed projects:", error);
+      }
+    }
+    fetchCompletedProjects();
+  }, []);
 
   const projects = Object.values(projectsData);
 
@@ -111,22 +130,28 @@ export default function ProjectsPage() {
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {levelProjects.map((project) => {
                   const isLocked = !project.isFree && !isPro;
+                  const isCompleted = !!completedProjects[project.id];
 
                   return (
                     <Card key={project.id} hover className={`flex flex-col ${isLocked ? "opacity-75" : ""}`}>
                       <CardContent className="p-6 flex flex-col h-full">
                         <div className="flex items-start justify-between mb-3">
-                          <Badge
-                            variant={
-                              project.difficulty === "beginner"
-                                ? "primary"
-                                : project.difficulty === "intermediate"
-                                  ? "accent"
-                                  : "default"
-                            }
-                          >
-                            {project.difficulty}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={
+                                project.difficulty === "beginner"
+                                  ? "primary"
+                                  : project.difficulty === "intermediate"
+                                    ? "accent"
+                                    : "default"
+                              }
+                            >
+                              {project.difficulty}
+                            </Badge>
+                            {isCompleted && (
+                              <Badge variant="success">✅ Completed</Badge>
+                            )}
+                          </div>
                           {isLocked && (
                             <span className="text-lg" title="Pro only">🔒</span>
                           )}
@@ -167,7 +192,9 @@ export default function ProjectsPage() {
                             </Link>
                           ) : (
                             <Link href={`/projects/${project.id}`}>
-                              <Button size="sm">Start Project</Button>
+                              <Button size="sm">
+                                {isCompleted ? "Try Again 🔄" : "Start Project"}
+                              </Button>
                             </Link>
                           )}
                         </div>

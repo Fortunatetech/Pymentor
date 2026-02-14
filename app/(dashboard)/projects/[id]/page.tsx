@@ -10,17 +10,45 @@ import { CodePlayground } from "@/components/editor/code-playground";
 import { useSubscription } from "@/hooks";
 import { projects } from "../data";
 import confetti from "canvas-confetti";
+import { useToast } from "@/components/ui/use-toast";
+import { title } from "process";
 
 export default function ProjectPage() {
   const params = useParams();
   const { isPro } = useSubscription();
+  const { toast } = useToast();
   const projectId = params.id as string;
   const project = projects[projectId];
 
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-  // validationStatus: null = not run, false = failed, true = passed
   const [validationStatus, setValidationStatus] = useState<boolean | null>(null);
+  const [showStepDrawer, setShowStepDrawer] = useState(false);
+  const [previouslyCompleted, setPreviouslyCompleted] = useState(false);
+
+  // Check API for existing completion on mount
+  useEffect(() => {
+    if (!projectId) return;
+
+    async function checkCompletion() {
+      try {
+        const res = await fetch("/api/projects/completed");
+        if (res.ok) {
+          const data = await res.json();
+          if (data[projectId]) {
+            setPreviouslyCompleted(true);
+            // Restore all steps as completed
+            if (project) {
+              setCompletedSteps(project.steps.map((_, i) => i));
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check project completion:", error);
+      }
+    }
+    checkCompletion();
+  }, [projectId, project]);
 
   // Reset validation status when changing steps
   useEffect(() => {
@@ -66,6 +94,7 @@ export default function ProjectPage() {
     ? (completedSteps.length / project.steps.length) * 100
     : 0;
   const step = project.steps[currentStep];
+  const isProjectComplete = completedSteps.length === project.steps.length;
 
   const handleStepComplete = () => {
     if (!completedSteps.includes(currentStep)) {
@@ -74,6 +103,25 @@ export default function ProjectPage() {
 
       // Check if this was the last step
       if (newCompleted.length === project.steps.length) {
+        // Call API to mark completed
+        fetch("/api/projects/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ project_id: projectId }),
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.xp_earned > 0) {
+              toast({
+                title: "Project Completed! 🎉",
+                description: `You earned ${data.xp_earned} XP!`,
+                variant: "default", // Success style
+              });
+            }
+          })
+          .catch(err => console.error("Failed to save progress:", err));
+
+        setPreviouslyCompleted(true);
         triggerCelebration();
       }
     }
@@ -81,6 +129,14 @@ export default function ProjectPage() {
     if (currentStep < project.steps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
+  };
+
+  const handleTryAgain = () => {
+    // Just reset local state, keep DB record
+    setPreviouslyCompleted(false);
+    setCompletedSteps([]);
+    setCurrentStep(0);
+    setValidationStatus(null);
   };
 
   const triggerCelebration = () => {
@@ -92,6 +148,7 @@ export default function ProjectPage() {
       return Math.random() * (max - min) + min;
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const interval: any = setInterval(function () {
       const timeLeft = animationEnd - Date.now();
 
@@ -115,18 +172,7 @@ export default function ProjectPage() {
   };
 
   const handleCodeRun = (code: string, output: string) => {
-    // If we have an expected output, strict check is handled by onSuccess prop
-    // If NO expected output, simply running the code without error count as success
     if (!step.expectedOutput) {
-      // Simple heuristic: if output is not empty and doesn't look like a traceback
-      // Note: The playground handles error display, but we get raw output here.
-      // However, CodePlayground passes clean error as output on failure.
-      // We can rely on CodePlayground's internal state via onSuccess/onFailure props mostly.
-
-      // Ideally we'd check if output contains "Traceback" or "Error", but CodePlayground
-      // cleans it.
-      // Let's assume onRun is called with the output. 
-      // We'll trust the user if it ran and produced output.
       if (output && output.trim().length > 0 && !output.includes("Error")) {
         setValidationStatus(true);
       }
@@ -141,10 +187,92 @@ export default function ProjectPage() {
     setValidationStatus(false);
   };
 
+  const selectStep = (i: number) => {
+    setCurrentStep(i);
+    setShowStepDrawer(false);
+  };
+
+  // ── Shared step list component ──────────────────────────────
+  const StepList = () => (
+    <div className="space-y-2 overflow-y-auto flex-1 pr-2">
+      {project.steps.map((s, i) => (
+        <button
+          key={i}
+          onClick={() => selectStep(i)}
+          className={`w-full text-left p-3 rounded-lg transition-all ${currentStep === i
+            ? "bg-primary-100 border-l-4 border-primary-500"
+            : "hover:bg-dark-50"
+            }`}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${completedSteps.includes(i)
+                ? "bg-green-500 text-white"
+                : currentStep === i
+                  ? "bg-primary-500 text-white"
+                  : "bg-dark-200 text-dark-500"
+                }`}
+            >
+              {completedSteps.includes(i) ? "✓" : i + 1}
+            </span>
+            <span
+              className={`text-sm ${currentStep === i ? "font-medium" : ""
+                }`}
+            >
+              {s.title}
+            </span>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="-m-8 min-h-screen flex">
-      {/* Left Sidebar - Steps */}
-      <div className="w-72 bg-white border-r border-dark-200 p-4 overflow-auto shrink-0 flex flex-col h-screen sticky top-0">
+    <div className="-m-8 min-h-screen flex flex-col lg:flex-row">
+      {/* ── Mobile Header ────────────────────────────────────── */}
+      <div className="lg:hidden bg-white border-b border-dark-200 p-4 sticky top-0 z-30">
+        <div className="flex items-center justify-between mb-2">
+          <Link
+            href="/projects"
+            className="text-sm text-dark-500 hover:text-dark-700"
+          >
+            &larr; Back
+          </Link>
+          <Badge
+            variant={
+              project.difficulty === "beginner" ? "primary" : "accent"
+            }
+          >
+            {project.difficulty}
+          </Badge>
+        </div>
+        <h2 className="font-bold text-dark-900 text-base mb-2 truncate">
+          {project.title}
+        </h2>
+        <div className="flex items-center gap-3 mb-2">
+          <Progress value={progress} className="flex-1" />
+          <span className="text-xs text-dark-500 shrink-0">
+            {Math.round(progress)}%
+          </span>
+        </div>
+        <button
+          onClick={() => setShowStepDrawer(!showStepDrawer)}
+          className="flex items-center gap-2 text-sm text-primary-600 font-medium w-full"
+        >
+          <span>Step {currentStep + 1} of {project.steps.length}: {step.title}</span>
+          <span className="ml-auto text-xs">{showStepDrawer ? "▲" : "▼"}</span>
+        </button>
+
+        {/* Mobile step drawer */}
+        {showStepDrawer && (
+          <div className="mt-3 bg-dark-50 rounded-xl p-3 max-h-60 overflow-y-auto border border-dark-200 animate-in slide-in-from-top-2 duration-200">
+            <StepList />
+          </div>
+        )}
+      </div>
+
+      {/* ── Desktop Sidebar ──────────────────────────────────── */}
+      <div className="w-72 bg-white border-r border-dark-200 p-4 overflow-auto shrink-0 hidden lg:flex flex-col h-screen sticky top-0">
         <Link
           href="/projects"
           className="text-sm text-dark-500 hover:text-dark-700 mb-4 block"
@@ -176,37 +304,7 @@ export default function ProjectPage() {
           <Progress value={progress} />
         </div>
 
-        <div className="space-y-2 overflow-y-auto flex-1 pr-2">
-          {project.steps.map((s, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentStep(i)}
-              className={`w-full text-left p-3 rounded-lg transition-all ${currentStep === i
-                ? "bg-primary-100 border-l-4 border-primary-500"
-                : "hover:bg-dark-50"
-                }`}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${completedSteps.includes(i)
-                    ? "bg-green-500 text-white"
-                    : currentStep === i
-                      ? "bg-primary-500 text-white"
-                      : "bg-dark-200 text-dark-500"
-                    }`}
-                >
-                  {completedSteps.includes(i) ? "✓" : i + 1}
-                </span>
-                <span
-                  className={`text-sm ${currentStep === i ? "font-medium" : ""
-                    }`}
-                >
-                  {s.title}
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
+        <StepList />
 
         {/* Concepts */}
         <div className="mt-4 pt-4 border-t border-dark-200 shrink-0">
@@ -226,14 +324,14 @@ export default function ProjectPage() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-8 overflow-auto bg-dark-50">
+      {/* ── Main Content ─────────────────────────────────────── */}
+      <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto bg-dark-50">
         <div className="max-w-4xl mx-auto">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-dark-900 mb-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-dark-900 mb-2">
               Step {currentStep + 1}: {step.title}
             </h1>
-            <p className="text-dark-600 mb-4">{step.instruction}</p>
+            <p className="text-dark-600 mb-4 text-sm sm:text-base">{step.instruction}</p>
 
             {/* Validation Status Indicator */}
             {validationStatus === true && (
@@ -243,17 +341,15 @@ export default function ProjectPage() {
             )}
           </div>
 
-          <div className="flex gap-4 items-start mb-6">
-            <div className="flex-1">
-              <CodePlayground
-                key={currentStep} // Force reset on step change
-                initialCode={step.starterCode}
-                expectedOutput={step.expectedOutput}
-                onRun={handleCodeRun}
-                onSuccess={handleSuccess}
-                onFailure={handleFailure}
-              />
-            </div>
+          <div className="mb-6">
+            <CodePlayground
+              key={currentStep}
+              initialCode={step.starterCode}
+              expectedOutput={step.expectedOutput}
+              onRun={handleCodeRun}
+              onSuccess={handleSuccess}
+              onFailure={handleFailure}
+            />
           </div>
 
           {step.hint && (
@@ -275,7 +371,7 @@ export default function ProjectPage() {
             </Button>
 
             {currentStep === project.steps.length - 1 ? (
-              completedSteps.length === project.steps.length ? (
+              isProjectComplete ? (
                 <Link href="/projects">
                   <Button>Back to Projects</Button>
                 </Link>
@@ -306,21 +402,24 @@ export default function ProjectPage() {
           )}
 
           {/* All steps completed */}
-          {completedSteps.length === project.steps.length && (
-            <div className="mt-8 bg-green-50 border border-green-200 rounded-xl p-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <span className="text-6xl block mb-4 animate-bounce">🏆</span>
-              <h3 className="text-2xl font-bold text-dark-900 mb-2">
+          {isProjectComplete && (
+            <div className="mt-8 bg-green-50 border border-green-200 rounded-xl p-6 sm:p-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <span className="text-5xl sm:text-6xl block mb-4 animate-bounce">🏆</span>
+              <h3 className="text-xl sm:text-2xl font-bold text-dark-900 mb-2">
                 Project Completed!
               </h3>
-              <p className="text-dark-600 mb-6 text-lg">
+              <p className="text-dark-600 mb-6 text-base sm:text-lg">
                 You earned {project.xpReward} XP. Amazing work mastering concepts like {project.concepts.slice(0, 2).join(", ")}!
               </p>
-              <div className="flex justify-center gap-4">
+              <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
+                <Button onClick={handleTryAgain} variant="secondary">
+                  Try Again 🔄
+                </Button>
                 <Button onClick={triggerCelebration} variant="secondary">
                   Celebrate Again 🎉
                 </Button>
                 <Link href="/projects">
-                  <Button size="lg">Find Another Project</Button>
+                  <Button size="lg" className="w-full sm:w-auto">Find Another Project</Button>
                 </Link>
               </div>
             </div>

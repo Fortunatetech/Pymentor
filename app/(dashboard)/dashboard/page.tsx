@@ -41,7 +41,7 @@ interface PathWithProgress {
 }
 
 export default function DashboardPage() {
-  const { profile, loading: userLoading, authUser } = useUser();
+  const { profile, loading: userLoading, authUser, refreshProfile } = useUser();
   const { isPro } = useSubscription();
   const searchParams = useSearchParams();
   const isNewUser = searchParams.get("tour") === "true";
@@ -52,6 +52,12 @@ export default function DashboardPage() {
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentLesson, setCurrentLesson] = useState<{ id: string; title: string; path: string; module: string; progress: number } | null>(null);
+
+  // Refresh profile on mount so XP/streak are always fresh
+  useEffect(() => {
+    if (!userLoading && authUser) refreshProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // Wait for auth to finish loading

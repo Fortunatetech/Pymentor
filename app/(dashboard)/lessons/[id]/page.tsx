@@ -10,6 +10,7 @@ import { UpgradePrompt } from "@/components/ui/upgrade-prompt";
 import { CodePlayground } from "@/components/editor/code-playground";
 import { useLessonTimer } from "@/hooks/use-lesson-timer";
 import { useSubscription } from "@/hooks";
+import { useUser } from "@/hooks/use-user";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -49,6 +50,7 @@ export default function LessonPage() {
   const router = useRouter();
   const lessonId = params.id as string;
   const { isPro } = useSubscription();
+  const { refreshProfile } = useUser();
 
   const [lesson, setLesson] = useState<LessonData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -175,6 +177,8 @@ export default function LessonPage() {
         }),
       });
       const result = await res.json();
+      // Refresh profile so XP updates across dashboard & progress
+      if (result.xp_earned > 0) refreshProfile();
 
       // If next lesson requires Pro and user isn't Pro, show upgrade prompt
       if (nextLessonLocked || (!lesson.nextLesson && !isPro)) {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { UserProvider } from "@/components/providers/user-provider";
+import { Toaster } from "@/components/ui/toaster";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -64,6 +65,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-dark-50">
         <UserProvider>
           {children}
+          <Toaster />
         </UserProvider>
       </body>
     </html>
